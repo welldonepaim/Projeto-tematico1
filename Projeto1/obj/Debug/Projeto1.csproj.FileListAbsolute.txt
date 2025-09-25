@@ -1,0 +1,9 @@
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\bin\Debug\Projeto1.exe.config
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\bin\Debug\Projeto1.exe
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\bin\Debug\Projeto1.pdb
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.csproj.AssemblyReference.cache
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.Properties.Resources.resources
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.csproj.GenerateResource.cache
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.csproj.CoreCompileInputs.cache
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.exe
+C:\Desenvolvimento\UCS\Projeto-tematico1\Projeto1\obj\Debug\Projeto1.pdb
