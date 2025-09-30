@@ -1,8 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import messagebox
-from src import db  # Importa db.py relativo ao src
-
+from src import db, session  # importa o módulo session
 
 class AbaUsuario:
     def __init__(self, notebook):
@@ -16,6 +15,17 @@ class AbaUsuario:
         self._montar_botoes()
         self._montar_tabela()
         self.carregar_dados()
+
+    def _verificar_permissao(self):
+        """Retorna True se usuário for Administrador ou Gestor"""
+        usuario_logado = session.get_usuario()
+        if not usuario_logado:
+            messagebox.showwarning("Atenção", "Você precisa estar logado para realizar esta ação.")
+            return False
+        if usuario_logado['perfil'] not in ("Administrador", "Gestor"):
+            messagebox.showwarning("Atenção", "Acesso restrito: apenas Administrador ou Gestor pode realizar esta ação.")
+            return False
+        return True
 
     def _montar_formulario(self):
         labels = ["Nome", "Login (E-mail)", "Senha", "Perfil", "Contato", "Status"]
@@ -56,7 +66,6 @@ class AbaUsuario:
         self.frame.columnconfigure(1, weight=1)
         self.frame.rowconfigure(7, weight=1)
 
-        # Botões editar/excluir
         frame_botoes = tb.Frame(self.frame)
         frame_botoes.grid(row=8, column=0, columnspan=2, pady=10)
 
@@ -70,6 +79,9 @@ class AbaUsuario:
             self.tree.insert("", "end", values=linha)
 
     def salvar(self):
+        if not self._verificar_permissao():
+            return
+
         nome = self.entries["Nome"].get()
         login = self.entries["Login (E-mail)"].get()
         senha = self.entries["Senha"].get()
@@ -82,12 +94,12 @@ class AbaUsuario:
             return
 
         try:
-            if self.usuario_em_edicao["id"]:  # Atualizar
+            if self.usuario_em_edicao["id"]:
                 db.atualizar_usuario(self.usuario_em_edicao["id"], nome, login, senha, perfil, contato, status)
                 messagebox.showinfo("Sucesso", "Usuário atualizado com sucesso!")
                 self.usuario_em_edicao["id"] = None
                 self.btn_salvar.config(text="Salvar Usuário", bootstyle=SUCCESS)
-            else:  # Inserir
+            else:
                 db.inserir_usuario(nome, login, senha, perfil, contato, status)
                 messagebox.showinfo("Sucesso", "Usuário cadastrado com sucesso!")
 
@@ -101,6 +113,9 @@ class AbaUsuario:
             messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
 
     def editar_usuario(self):
+        if not self._verificar_permissao():
+            return
+
         selecionado = self.tree.selection()
         if not selecionado:
             messagebox.showwarning("Atenção", "Selecione um usuário para editar.")
@@ -121,6 +136,9 @@ class AbaUsuario:
         self.btn_salvar.config(text="Atualizar Usuário", bootstyle=WARNING)
 
     def excluir_usuario(self):
+        if not self._verificar_permissao():
+            return
+
         selecionado = self.tree.selection()
         if not selecionado:
             messagebox.showwarning("Atenção", "Selecione um usuário para excluir.")
