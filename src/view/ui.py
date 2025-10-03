@@ -1,4 +1,8 @@
 import ttkbootstrap as tb
+import ttkbootstrap as tb
+import os
+import sys
+import tkinter as tk
 from ttkbootstrap.constants import *
 from tkinter import messagebox
 from src.view.painel import AbaPainel
@@ -10,13 +14,19 @@ from src.model import session
 
 class App:
     def __init__(self):
-        self.app = tb.Window(themename="cosmo")
+        self.app = tk.Tk()  # ou tb.Window(themename="cosmo") se usar ttkbootstrap
         self.app.title("ManuSys")
         self.app.geometry("900x600")
 
-        # Define o ícone da aplicação
-        self.app.iconbitmap("C:/Users/william/Documents/GitHub/Projeto-tematico1/image/favicon.ico")
-
+        # Define ícone multiplataforma
+        if sys.platform.startswith("win"):
+            icone_path = r"C:/Users/william/Documents/GitHub/Projeto-tematico1/image/favicon.ico"
+            if os.path.exists(icone_path):
+                self.app.iconbitmap(icone_path)
+        else:
+            icone_path = os.path.join(os.path.dirname(__file__), "image", "favicon.png")
+            if os.path.exists(icone_path):
+                self.app.iconphoto(True, PhotoImage(file=icone_path))
         self._criar_cabecalho()
         self._criar_notebook()
         self._adicionar_abas()
