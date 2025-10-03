@@ -9,7 +9,7 @@ from src.view.painel import AbaPainel
 from src.view.usuario import AbaUsuario
 from src.view.setor import AbaSetor
 from src.view.equipamento import AbaEquipamento
-from src.dao import db
+from src.dao.usuario_dao import verificar_login
 from src.model import session
 
 class App:
@@ -78,10 +78,10 @@ class App:
         email = self.email_entry.get()
         senha = self.senha_entry.get()
 
-        usuario = db.verificar_login(email, senha)
+        usuario = verificar_login(email, senha)
         if usuario:
             session.set_usuario(usuario)  # define o usuário no módulo session
-            messagebox.showinfo("Sucesso", f"Bem-vindo, {usuario['nome']}!")
+            messagebox.showinfo("Sucesso", f"Bem-vindo, {usuario.nome}!")
             self.login_janela.destroy()
             self._atualizar_cabecalho_usuario()
         else:
@@ -94,7 +94,7 @@ class App:
         frame_direita.pack(side=RIGHT)
 
         usuario = session.get_usuario()
-        tb.Label(frame_direita, text=f"{usuario['nome']} ({usuario['perfil']})",
+        tb.Label(frame_direita, text=f"{usuario.nome} ({usuario.perfil})",
                 font=("Arial", 12), bootstyle=SECONDARY).pack(side=LEFT)
         tb.Button(frame_direita, text="Logout", bootstyle=DANGER, command=self.fazer_logout).pack(side=RIGHT, padx=5)
 

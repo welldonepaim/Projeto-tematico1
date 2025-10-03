@@ -8,7 +8,7 @@ def hash_senha(senha):
 def listar_usuarios():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, nome, login, perfil, contato, status FROM usuarios")
+    cur.execute("SELECT id, nome, login, senha, perfil, contato, status FROM usuarios")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -32,13 +32,20 @@ def criar_tabela_usuario():
     cur.close()
     conn.close()
 
-def inserir_usuario(nome, login, senha, perfil, contato, status="Ativo"):
+def inserir_usuario(usuario: Usuario):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO usuarios (nome, login, senha, perfil, contato, status)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (nome, login, hash_senha(senha), perfil, contato, status))
+    """, (
+        usuario.nome,
+        usuario.login,
+        hash_senha(usuario.senha),
+        usuario.perfil,
+        usuario.contato,
+        usuario.status
+    ))
     conn.commit()
     cur.close()
     conn.close()
@@ -47,51 +54,51 @@ def verificar_login(login, senha):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, nome, perfil FROM usuarios WHERE login=? AND senha=?",
+        "SELECT id, nome, login, senha, perfil, contato, status FROM usuarios WHERE login=? AND senha=?",
         (login, hash_senha(senha))
     )
     row = cur.fetchone()
     cur.close()
     conn.close()
     if row:
-        return {"id": row[0], "nome": row[1], "perfil": row[2]}
+        return Usuario(*row)
     return None
 
-def atualizar_usuario(id, nome=None, login=None, senha=None, perfil=None, contato=None, status=None):
+def atualizar_usuario(usuario: Usuario):
     conn = get_connection()
     cur = conn.cursor()
-    fields = []
-    params = []
-
-    if nome is not None:
-        fields.append("nome=?")
-        params.append(nome)
-    if login is not None:
-        fields.append("login=?")
-        params.append(login)
-    if senha:
-        fields.append("senha=?")
-        params.append(hash_senha(senha))
-    if perfil is not None:
-        fields.append("perfil=?")
-        params.append(perfil)
-    if contato is not None:
-        fields.append("contato=?")
-        params.append(contato)
-    if status is not None:
-        fields.append("status=?")
-        params.append(status)
-
-    params.append(id)
-    cur.execute(f"UPDATE usuarios SET {', '.join(fields)} WHERE id=?", params)
+    cur.execute("""
+        UPDATE usuarios
+        SET nome=?, login=?, senha=?, perfil=?, contato=?, status=?
+        WHERE id=?
+    """, (
+        usuario.nome,
+        usuario.login,
+        hash_senha(usuario.senha) if usuario.senha else None,
+        usuario.perfil,
+        usuario.contato,
+        usuario.status,
+        usuario.id
+    ))
     conn.commit()
     cur.close()
     conn.close()
 
-def excluir_usuario(id):
+def excluir_usuario(usuario_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM usuarios WHERE id=?", (id,))
+    cur.execute("DELETE FROM usuarios WHERE id=?", (usuario_id,))
     conn.commit()
     cur.close()
     conn.close()
+
+def buscar_usuario_por_id(usuario_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, login, senha, perfil, contato, status FROM usuarios WHERE id=?", (usuario_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row:
+        return Usuario(*row)
+    return None

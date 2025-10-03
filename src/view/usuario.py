@@ -25,7 +25,7 @@ class AbaUsuario:
         if not usuario_logado:
             messagebox.showwarning("Atenção", "Você precisa estar logado para realizar esta ação.")
             return False
-        if usuario_logado['perfil'] not in ("Administrador", "Gestor"):
+        if usuario_logado.perfil not in ("Administrador", "Gestor"):
             messagebox.showwarning("Atenção", "Acesso restrito: apenas Administrador ou Gestor pode realizar esta ação.")
             return False
         return True
