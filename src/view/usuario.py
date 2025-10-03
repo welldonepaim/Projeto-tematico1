@@ -101,22 +101,40 @@ class AbaUsuario:
         if not selecionado:
             messagebox.showwarning("Atenção", "Selecione um usuário para editar.")
             return
-        item = self.tree.item(selecionado[0])
-        valores = item["values"]
 
-        self.usuario_em_edicao["id"] = valores[0]
+        # pega o id a partir do primeiro valor da linha (garantir que é o id)
+        item = self.tree.item(selecionado[0])
+        valores = item.get("values", [])
+        if not valores:
+            messagebox.showerror("Erro", "Dados da linha inválidos.")
+            return
+
+        try:
+            usuario_id = int(valores[0])
+        except Exception:
+            usuario_id = valores[0]  # fallback, se for string
+
+        # busca objeto Usuario no DAO — mais seguro que confiar apenas em `values`
+        usuario = usuario_dao.buscar_usuario_por_id(usuario_id)
+        if not usuario:
+            messagebox.showerror("Erro", "Usuário não encontrado no banco.")
+            return
+
+        # preenche o formulário com o objeto recuperado
+        self.usuario_em_edicao["id"] = usuario.id
         self.entries["Nome"].delete(0, "end")
-        self.entries["Nome"].insert(0, valores[1])
+        self.entries["Nome"].insert(0, usuario.nome or "")
         self.entries["Login (E-mail)"].delete(0, "end")
-        self.entries["Login (E-mail)"].insert(0, valores[2])
-        self.entries["Senha"].delete(0, "end")  # não mostra senha
-        self.entries["Perfil"].set(valores[3])
+        self.entries["Login (E-mail)"].insert(0, usuario.login or "")
+        # não mostramos a senha por segurança — campo fica vazio
+        self.entries["Senha"].delete(0, "end")
+        self.entries["Perfil"].set(usuario.perfil or "")
         self.entries["Contato"].delete(0, "end")
-        self.entries["Contato"].insert(0, valores[4])
-        self.entries["Status"].set(valores[5])
+        self.entries["Contato"].insert(0, usuario.contato or "")
+        self.entries["Status"].set(usuario.status or "")
 
         self.btn_salvar.config(text="Atualizar Usuário", bootstyle=WARNING)
-        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)  # mostra o botão cancelar
+        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
     def excluir_usuario(self):
         if not self._verificar_permissao():

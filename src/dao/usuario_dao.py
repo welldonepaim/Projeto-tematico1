@@ -15,3 +15,9 @@ def atualizar_usuario(usuario: Usuario):
 
 def excluir_usuario(usuario_id):
     return db.excluir_usuario(usuario_id)
+
+def buscar_usuario_por_id(usuario_id):
+    row = db.buscar_usuario_por_id(usuario_id)
+    if row:
+        return Usuario(*row)
+    return None

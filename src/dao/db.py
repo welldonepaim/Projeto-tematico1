@@ -198,5 +198,17 @@ def inicializar_banco():
         conn.close()
         print("Usuário admin já existe.")
 
+def buscar_usuario_por_id(usuario_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, nome, login, senha, perfil, contato, status 
+        FROM usuarios 
+        WHERE id = ?
+    """, (usuario_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
 
 inicializar_banco()

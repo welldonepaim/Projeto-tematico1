@@ -1,4 +1,5 @@
-# src/session.py
+# src/session.py 
+# tranformar em classe
 
 usuario_logado = None
 
