@@ -4,9 +4,10 @@ from ttkbootstrap.constants import *
 from tkinter import Listbox, messagebox, simpledialog
 from src.dao.setor_dao import listar_setores
 import os
-import json
+from src.dao import setor_dao
 
-ARQUIVO = "setores.json"
+
+
 
 # ===== Classe Setor =====
 class Setor:
@@ -93,10 +94,7 @@ class AbaSetor:
         self.atualizar_lista()
 
 
-    def salvar_dados(self):
-        with open(ARQUIVO, "w", encoding="utf-8") as f:
-            json.dump([s.__dict__ for s in AbaSetor.setores], f, indent=4, ensure_ascii=False)
-
+    
     # ===== Funções de interface =====
     def atualizar_lista(self, setores=None):
         self.lista_setores.delete(0, tb.END)
@@ -112,7 +110,7 @@ class AbaSetor:
         nome = self.entry_nome.get().strip()
         responsavel = self.entry_responsavel.get().strip()
         if nome:
-            db.inserir_setor(nome, responsavel if responsavel else None)
+            setor_dao.inserir_setor(nome, responsavel if responsavel else None)
             self.entry_nome.delete(0, tb.END)
             self.entry_responsavel.delete(0, tb.END)
             self.criar_frame.pack_forget()
@@ -144,15 +142,16 @@ class AbaSetor:
             setor = self.setores_exibidos[sel[0]]
             novo_resp = simpledialog.askstring("Alterar responsável", f"Novo responsável para {setor.nome}:")
             if novo_resp:
-                db.atualizar_setor(setor.id, responsavel=novo_resp)
+                setor_dao.atualizar_setor(setor.id, responsavel=novo_resp)
                 self.carregar_dados()
 
     def remover_responsavel_lista(self):
         sel = self.lista_setores.curselection()
         if sel:
             setor = self.setores_exibidos[sel[0]]
-            db.atualizar_setor(setor.id, responsavel=None)
+            setor_dao.atualizar_setor(setor.id, limpar_resp=True)  # <- obrigatório para remover
             self.carregar_dados()
+
 
     def renomear_setor(self):
         sel = self.lista_setores.curselection()
@@ -160,7 +159,7 @@ class AbaSetor:
             setor = self.setores_exibidos[sel[0]]
             novo_nome = simpledialog.askstring("Renomear Setor", f"Novo nome para {setor.nome}:")
             if novo_nome:
-                db.atualizar_setor(setor.id, nome=novo_nome)
+                setor_dao.atualizar_setor(setor.id, nome=novo_nome)
                 self.carregar_dados()
 
     def remover_setor(self):
@@ -168,7 +167,7 @@ class AbaSetor:
         if sel:
             setor = self.setores_exibidos[sel[0]]
             if messagebox.askyesno("Confirmação", f"Tem certeza que deseja remover o setor {setor.nome}?"):
-                db.desativar_setor(setor.id)  # apenas desativa
+                setor_dao.desativar_setor(setor.id)  #desativa
                 self.carregar_dados()
 
 

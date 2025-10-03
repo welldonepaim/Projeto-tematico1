@@ -1,6 +1,6 @@
 from src.dao.db import get_connection
 
-def criar_tabela_setor():
+def criar_tabela_setores():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -15,14 +15,7 @@ def criar_tabela_setor():
     cur.close()
     conn.close()
 
-def inserir_setor(nome, responsavel=None, status="Ativo"):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO setores (nome, responsavel, status) VALUES (?, ?, ?)",
-                (nome, responsavel, status))
-    conn.commit()
-    cur.close()
-    conn.close()
+
 
 def listar_setores():
     conn = get_connection()
@@ -33,27 +26,49 @@ def listar_setores():
     conn.close()
     return dados
 
-def atualizar_setor(setor_id, nome=None, responsavel=None, status=None):
+
+
+
+def inserir_setor(nome, responsavel=None, status="Ativo"):
     conn = get_connection()
     cur = conn.cursor()
-    fields = []
-    params = []
+    cur.execute("""
+        INSERT INTO setores (nome, responsavel, status)
+        VALUES (?, ?, ?)
+    """, (nome, responsavel, status))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-    if nome is not None:
-        fields.append("nome=?")
-        params.append(nome)
-    if responsavel is not None:
-        fields.append("responsavel=?")
-        params.append(responsavel)
-    if status is not None:
-        fields.append("status=?")
-        params.append(status)
 
-    params.append(setor_id)
-    cur.execute(f"UPDATE setores SET {', '.join(fields)} WHERE id=?", params)
+
+def atualizar_setor(setor_id, nome=None, responsavel=None, status=None, limpar_resp=False):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    if limpar_resp:
+        cur.execute("UPDATE setores SET responsavel=NULL WHERE id=?", (setor_id,))
+    elif nome is not None and responsavel is not None and status is not None:
+        cur.execute("UPDATE setores SET nome=?, responsavel=?, status=? WHERE id=?",
+                    (nome, responsavel, status, setor_id))
+    elif nome is not None and responsavel is not None:
+        cur.execute("UPDATE setores SET nome=?, responsavel=? WHERE id=?",
+                    (nome, responsavel, setor_id))
+    elif nome is not None:
+        cur.execute("UPDATE setores SET nome=? WHERE id=?", (nome, setor_id))
+    elif responsavel is not None:
+        cur.execute("UPDATE setores SET responsavel=? WHERE id=?", (responsavel, setor_id))
+    elif status is not None:
+        cur.execute("UPDATE setores SET status=? WHERE id=?", (status, setor_id))
+
     conn.commit()
     cur.close()
     conn.close()
 
 def desativar_setor(setor_id):
-    atualizar_setor(setor_id, status="Inativo")
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE setores SET status='Inativo' WHERE id=?", (setor_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
