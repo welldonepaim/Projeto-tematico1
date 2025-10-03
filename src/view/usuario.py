@@ -1,7 +1,10 @@
+from src.model import session
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import messagebox
-from src import db, session  # importa o módulo session
+from src.dao import db  # importa o módulo session
+from src.model.usuario import Usuario
+from src.dao import usuario_dao
 
 class AbaUsuario:
     def __init__(self, notebook):
@@ -52,8 +55,15 @@ class AbaUsuario:
                 self.entries[label] = entry
 
     def _montar_botoes(self):
-        self.btn_salvar = tb.Button(self.frame, text="Salvar Usuário", bootstyle=SUCCESS, command=self.salvar)
-        self.btn_salvar.grid(row=6, column=0, columnspan=2, pady=15, sticky="ew")
+        frame_botoes_form = tb.Frame(self.frame)
+        frame_botoes_form.grid(row=6, column=0, columnspan=2, pady=15, sticky="ew")
+
+        self.btn_salvar = tb.Button(frame_botoes_form, text="Salvar Usuário", bootstyle=SUCCESS, command=self.salvar)
+        self.btn_salvar.pack(side=LEFT, expand=True, fill="x", padx=5)
+
+        self.btn_cancelar = tb.Button(frame_botoes_form, text="Cancelar", bootstyle=SECONDARY, command=self.cancelar_edicao)
+        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
+        self.btn_cancelar.pack_forget()  # esconde inicialmente
 
     def _montar_tabela(self):
         colunas = ("ID", "Nome", "Login", "Perfil", "Contato", "Status")
@@ -75,42 +85,13 @@ class AbaUsuario:
     def carregar_dados(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        for linha in db.listar_usuarios():
-            self.tree.insert("", "end", values=linha)
 
-    def salvar(self):
-        if not self._verificar_permissao():
-            return
-
-        nome = self.entries["Nome"].get()
-        login = self.entries["Login (E-mail)"].get()
-        senha = self.entries["Senha"].get()
-        perfil = self.entries["Perfil"].get()
-        contato = self.entries["Contato"].get()
-        status = self.entries["Status"].get()
-
-        if not (nome and login and perfil and status):
-            messagebox.showwarning("Atenção", "Preencha todos os campos obrigatórios.")
-            return
-
-        try:
-            if self.usuario_em_edicao["id"]:
-                db.atualizar_usuario(self.usuario_em_edicao["id"], nome, login, senha, perfil, contato, status)
-                messagebox.showinfo("Sucesso", "Usuário atualizado com sucesso!")
-                self.usuario_em_edicao["id"] = None
-                self.btn_salvar.config(text="Salvar Usuário", bootstyle=SUCCESS)
-            else:
-                db.inserir_usuario(nome, login, senha, perfil, contato, status)
-                messagebox.showinfo("Sucesso", "Usuário cadastrado com sucesso!")
-
-            for entry in self.entries.values():
-                if isinstance(entry, tb.Entry):
-                    entry.delete(0, "end")
-                elif isinstance(entry, tb.Combobox):
-                    entry.set("")
-            self.carregar_dados()
-        except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
+        usuarios = usuario_dao.listar_usuarios()
+        for usuario in usuarios:
+            self.tree.insert("", "end", values=(
+                usuario.id, usuario.nome, usuario.login,
+                usuario.perfil, usuario.contato, usuario.status
+            ))
 
     def editar_usuario(self):
         if not self._verificar_permissao():
@@ -128,12 +109,14 @@ class AbaUsuario:
         self.entries["Nome"].insert(0, valores[1])
         self.entries["Login (E-mail)"].delete(0, "end")
         self.entries["Login (E-mail)"].insert(0, valores[2])
-        self.entries["Senha"].delete(0, "end")
+        self.entries["Senha"].delete(0, "end")  # não mostra senha
         self.entries["Perfil"].set(valores[3])
         self.entries["Contato"].delete(0, "end")
         self.entries["Contato"].insert(0, valores[4])
         self.entries["Status"].set(valores[5])
+
         self.btn_salvar.config(text="Atualizar Usuário", bootstyle=WARNING)
+        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)  # mostra o botão cancelar
 
     def excluir_usuario(self):
         if not self._verificar_permissao():
@@ -149,8 +132,61 @@ class AbaUsuario:
 
         if messagebox.askyesno("Confirmar", f"Deseja realmente excluir o usuário {valores[1]}?"):
             try:
-                db.excluir_usuario(usuario_id)
+                usuario_dao.excluir_usuario(usuario_id)
                 self.carregar_dados()
                 messagebox.showinfo("Sucesso", "Usuário excluído com sucesso!")
             except Exception as e:
                 messagebox.showerror("Erro", f"Não foi possível excluir: {e}")
+
+    def salvar(self):
+        if not self._verificar_permissao():
+            return
+
+        usuario = Usuario(
+            id=self.usuario_em_edicao["id"],
+            nome=self.entries["Nome"].get(),
+            login=self.entries["Login (E-mail)"].get(),
+            senha=self.entries["Senha"].get(),
+            perfil=self.entries["Perfil"].get(),
+            contato=self.entries["Contato"].get(),
+            status=self.entries["Status"].get()
+        )
+
+        if not (usuario.nome and usuario.login and usuario.perfil and usuario.status):
+            messagebox.showwarning("Atenção", "Preencha todos os campos obrigatórios.")
+            return
+
+        try:
+            if usuario.id:
+                # se senha estiver vazia, mantém a antiga
+                if not usuario.senha:
+                    antigo = usuario_dao.buscar_usuario_por_id(usuario.id)
+                    usuario.senha = antigo.senha
+
+                usuario_dao.atualizar_usuario(usuario)
+                messagebox.showinfo("Sucesso", "Usuário atualizado com sucesso!")
+                self.usuario_em_edicao["id"] = None
+                self.btn_salvar.config(text="Salvar Usuário", bootstyle=SUCCESS)
+                self.btn_cancelar.pack_forget()
+            else:
+                usuario_dao.inserir_usuario(usuario)
+                messagebox.showinfo("Sucesso", "Usuário cadastrado com sucesso!")
+            
+            self.limpar_formulario()
+            self.carregar_dados()
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
+
+    def limpar_formulario(self):
+        for entry in self.entries.values():
+            if isinstance(entry, tb.Entry):
+                entry.delete(0, "end")
+            elif isinstance(entry, tb.Combobox):
+                entry.set("")
+        self.usuario_em_edicao["id"] = None
+
+    def cancelar_edicao(self):
+        """Cancela edição e reseta formulário"""
+        self.limpar_formulario()
+        self.btn_salvar.config(text="Salvar Usuário", bootstyle=SUCCESS)
+        self.btn_cancelar.pack_forget()

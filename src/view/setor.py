@@ -1,8 +1,8 @@
-# src/views/setor.py
+# src/view/setor.py
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import Listbox, messagebox, simpledialog
-from src import db
+from src.dao import db
 import os
 import json
 

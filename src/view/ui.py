@@ -1,11 +1,12 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import messagebox
-from src.views.painel import AbaPainel
-from src.views.usuario import AbaUsuario
-from src.views.setor import AbaSetor
-from src.views.equipamento import AbaEquipamento
-from src import db, session  # importa o módulo session
+from src.view.painel import AbaPainel
+from src.view.usuario import AbaUsuario
+from src.view.setor import AbaSetor
+from src.view.equipamento import AbaEquipamento
+from src.dao import db
+from src.model import session
 
 class App:
     def __init__(self):
