@@ -175,6 +175,8 @@ def desativar_setor(setor_id):
 def inicializar_banco():
     """Cria tabela se não existir e garante que o usuário admin exista"""
     criar_tabela()
+    criar_tabela_setores()
+    
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT id FROM usuarios WHERE login = 'admin'")
