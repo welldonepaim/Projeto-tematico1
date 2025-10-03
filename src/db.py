@@ -97,9 +97,6 @@ def verificar_login(email, senha):
     else:
         return None
 
-<<<<<<< Updated upstream
-=======
-
 # ------------------ TABELA SETORES ------------------ #
 def criar_tabela_setores():
     conn = get_connection()
@@ -201,4 +198,3 @@ def inicializar_banco():
 
 
 inicializar_banco()
->>>>>>> Stashed changes
