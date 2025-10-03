@@ -8,6 +8,7 @@ from src.dao import usuario_dao
 
 class AbaUsuario:
     def __init__(self, notebook):
+
         self.frame = tb.Frame(notebook, padding=10)
         notebook.add(self.frame, text="Usuários")
 
@@ -64,11 +65,11 @@ class AbaUsuario:
         self.btn_cancelar = tb.Button(frame_botoes_form, text="Cancelar", bootstyle=SECONDARY, command=self.cancelar_edicao)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()  # esconde inicialmente
-        
+
     def _montar_tabela(self):
-        # campo de pesquisa
+        # campo de pesquisa linha 7 
         frame_pesquisa = tb.Frame(self.frame)
-        frame_pesquisa.grid(row=6, column=0, columnspan=2, pady=5, sticky="ew")
+        frame_pesquisa.grid(row=7, column=0, columnspan=2, pady=5, sticky="ew")
 
         tb.Label(frame_pesquisa, text="Pesquisar:").pack(side=LEFT, padx=5)
         self.entry_pesquisa = tb.Entry(frame_pesquisa)
@@ -77,19 +78,25 @@ class AbaUsuario:
         tb.Button(frame_pesquisa, text="Buscar", bootstyle=INFO, command=self.pesquisar_usuario).pack(side=LEFT, padx=5)
         tb.Button(frame_pesquisa, text="Limpar", bootstyle=SECONDARY, command=self.carregar_dados).pack(side=LEFT, padx=5)
 
-        # tabela
+        # tabela (linha 8)
         colunas = ("ID", "Nome", "Login", "Perfil", "Contato", "Status")
         self.tree = tb.Treeview(self.frame, columns=colunas, show="headings", bootstyle=INFO)
         for col in colunas:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=120, anchor="center")
-        self.tree.grid(row=7, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.tree.grid(row=8, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        # ----------------- Cores alternadas -----------------
+        self.tree.tag_configure('par', background='#f2f2f2')   # cinza claro
+        self.tree.tag_configure('impar', background='white')    # branco
+        # -----------------------------------------------------
 
         self.frame.columnconfigure(1, weight=1)
-        self.frame.rowconfigure(7, weight=1)
+        self.frame.rowconfigure(8, weight=1)
 
+        # botoes da tabela (linha 9)
         frame_botoes = tb.Frame(self.frame)
-        frame_botoes.grid(row=8, column=0, columnspan=2, pady=10)
+        frame_botoes.grid(row=9, column=0, columnspan=2, pady=10)
 
         tb.Button(frame_botoes, text="Editar Usuário", bootstyle=WARNING, command=self.editar_usuario).pack(side=LEFT, padx=5)
         tb.Button(frame_botoes, text="Excluir Usuário", bootstyle=DANGER, command=self.excluir_usuario).pack(side=LEFT, padx=5)
@@ -135,11 +142,13 @@ class AbaUsuario:
             self.tree.delete(item)
 
         usuarios = usuario_dao.listar_usuarios()
-        for usuario in usuarios:
+        for i, usuario in enumerate(usuarios):
+            tag = 'par' if i % 2 == 0 else 'impar'
             self.tree.insert("", "end", values=(
                 usuario.id, usuario.nome, usuario.login,
                 usuario.perfil, usuario.contato, usuario.status
-            ))
+            ), tags=(tag,))
+
 
     def editar_usuario(self):
         if not self._verificar_permissao():
