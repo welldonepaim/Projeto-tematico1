@@ -2,7 +2,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import Listbox, messagebox, simpledialog
-from src.dao import db
+from src.dao.setor_dao import listar_setores
 import os
 import json
 
@@ -87,7 +87,7 @@ class AbaSetor:
 
     # ===== Persistência =====
     def carregar_dados(self):
-        setores_db = db.listar_setores()
+        setores_db = listar_setores()
         AbaSetor.setores = [Setor(id, nome, responsavel) for id, nome, responsavel in setores_db]
         self.setores_exibidos = AbaSetor.setores.copy()
         self.atualizar_lista()
