@@ -38,11 +38,11 @@ class AbaUsuario:
             tb.Label(self.frame, text=label + ":", anchor="w").grid(row=i, column=0, padx=5, pady=5, sticky="w")
 
             if label == "Perfil":
-                combo = tb.Combobox(self.frame, values=["Administrador", "Técnico", "Gestor", "Usuário"])
+                combo = tb.Combobox(self.frame, values=["Administrador", "Técnico", "Gestor", "Usuário"], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
             elif label == "Status":
-                combo = tb.Combobox(self.frame, values=["Ativo", "Inativo"])
+                combo = tb.Combobox(self.frame, values=["Ativo", "Inativo"], state="readonly")
                 combo.set("Ativo")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo

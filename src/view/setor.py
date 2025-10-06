@@ -4,28 +4,7 @@ from ttkbootstrap.constants import *
 from tkinter import Listbox, messagebox, simpledialog
 from src.dao.setor_dao import listar_setores
 from src.dao import setor_dao, usuario_dao
-
-# ===== Classe Setor =====
-class Setor:
-    def __init__(self, id, nome, responsavel=None):
-        self.id = id
-        self.nome = nome
-        self.responsavel = responsavel
-
-    def __str__(self):
-        if self.responsavel:
-            return f"Id:{self.id}, Setor: {self.nome}, Responsável: {self.responsavel}"
-        return f"Id:{self.id}, Setor: {self.nome}, Responsável: (não definido)"
-
-    def alterar_responsavel(self, novo_responsavel):
-        self.responsavel = novo_responsavel
-
-    def remover_responsavel(self):
-        self.responsavel = None
-
-    def alterar_nome(self, novo_nome):
-        self.nome = novo_nome
-
+from src.model.setor import Setor 
 
 # ===== Classe AbaSetor =====
 class AbaSetor:
@@ -91,12 +70,12 @@ class AbaSetor:
         tb.Button(btn_frame, text="Cancelar", bootstyle=DANGER,
                   command=lambda: self.criar_frame.pack_forget()).pack(side=LEFT, padx=5)
 
-    # ===== Funções auxiliares =====
     def carregar_dados(self):
         setores_db = listar_setores()
-        AbaSetor.setores = [Setor(id, nome, responsavel) for id, nome, responsavel in setores_db]
+        AbaSetor.setores = setores_db  # setores_db já são objetos Setor
         self.setores_exibidos = AbaSetor.setores.copy()
         self.atualizar_lista()
+
 
     def atualizar_lista(self, setores=None):
         self.lista_setores.delete(0, tb.END)

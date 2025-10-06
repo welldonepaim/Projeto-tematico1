@@ -1,22 +1,24 @@
 import ttkbootstrap as tb
-import ttkbootstrap as tb
 import os
 import sys
 import tkinter as tk
+from tkinter import PhotoImage, messagebox
 from ttkbootstrap.constants import *
-from tkinter import messagebox
+
 from src.view.painel import AbaPainel
 from src.view.usuario import AbaUsuario
 from src.view.setor import AbaSetor
 from src.view.equipamento import AbaEquipamento
+from src.view.manutencao import AbaManutencao
 from src.dao.usuario_dao import verificar_login
 from src.model import session
 
+
 class App:
     def __init__(self):
-        self.app = tk.Tk()  # ou tb.Window(themename="cosmo") se usar ttkbootstrap
+        self.app = tk.Tk()
         self.app.title("ManuSys")
-        self.app.geometry("900x600")
+        self.app.geometry("1200x680")
 
         # Define ícone multiplataforma
         if sys.platform.startswith("win"):
@@ -27,9 +29,13 @@ class App:
             icone_path = os.path.join(os.path.dirname(__file__), "image", "favicon.png")
             if os.path.exists(icone_path):
                 self.app.iconphoto(True, PhotoImage(file=icone_path))
+
         self._criar_cabecalho()
         self._criar_notebook()
         self._adicionar_abas()
+
+        # Bind para atualizar setores quando mudar para a aba Equipamentos
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         self.app.mainloop()
 
@@ -49,13 +55,30 @@ class App:
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
     def _adicionar_abas(self):
-        AbaPainel(self.notebook)
-        AbaUsuario(self.notebook)
-        AbaSetor(self.notebook)
-        AbaEquipamento(self.notebook)
+        self.aba_painel = AbaPainel(self.notebook)
+        self.aba_usuario = AbaUsuario(self.notebook)
+        self.aba_setor = AbaSetor(self.notebook)
+        self.aba_equipamento = AbaEquipamento(self.notebook)
+        self.aba_manutencao = AbaManutencao(self.notebook)
+
+        # Conecta evento de mudança de aba
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    def _on_tab_changed(self, event):
+        tab_id = event.widget.select()
+        tab_text = event.widget.tab(tab_id, "text")
+
+        if tab_text == "Equipamentos":
+            self.aba_equipamento._atualizar_setores()
+            self.aba_equipamento.carregar_dados()
+
+        elif tab_text == "Manutenções":
+            self.aba_manutencao._atualizar_equipamentos()  # método que você precisa criar
+            self.aba_manutencao._atualizar_usuarios()      # idem
+            self.aba_manutencao.carregar_dados()
+
 
     def abrir_login(self):
-        # Janela de login
         self.login_janela = tb.Toplevel(self.app)
         self.login_janela.title("Login")
         self.login_janela.geometry("300x200")
@@ -80,7 +103,7 @@ class App:
 
         usuario = verificar_login(email, senha)
         if usuario:
-            session.set_usuario(usuario)  # define o usuário no módulo session
+            session.set_usuario(usuario)
             messagebox.showinfo("Sucesso", f"Bem-vindo, {usuario.nome}!")
             self.login_janela.destroy()
             self._atualizar_cabecalho_usuario()

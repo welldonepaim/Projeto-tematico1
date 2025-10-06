@@ -102,3 +102,19 @@ def buscar_usuario_por_id(usuario_id):
     if row:
         return Usuario(*row)
     return None
+
+# APENAS PARA DESENVOLVIMENTO
+def buscar_usuario_por_login(login):
+    """
+    Retorna um objeto Usuario pelo login, ou None se não existir.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, login, senha, perfil, contato, status FROM usuarios WHERE login=?", (login,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row:
+        return Usuario(*row)
+    return None
+

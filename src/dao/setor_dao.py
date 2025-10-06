@@ -1,4 +1,5 @@
 from src.dao.db import get_connection
+from src.model.setor import Setor 
 
 def criar_tabela_setores():
     conn = get_connection()
@@ -16,17 +17,16 @@ def criar_tabela_setores():
     conn.close()
 
 
-
 def listar_setores():
+    """Retorna lista de objetos Setor ativos"""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT id, nome, responsavel FROM setores WHERE status='Ativo' ORDER BY id")
     dados = cur.fetchall()
     cur.close()
     conn.close()
-    return dados
-
-
+    # Converte tuplas em objetos Setor
+    return [Setor(*dado) for dado in dados]
 
 
 def inserir_setor(nome, responsavel=None, status="Ativo"):
@@ -39,7 +39,6 @@ def inserir_setor(nome, responsavel=None, status="Ativo"):
     conn.commit()
     cur.close()
     conn.close()
-
 
 
 def atualizar_setor(setor_id, nome=None, responsavel=None, status=None, limpar_resp=False):
@@ -65,6 +64,7 @@ def atualizar_setor(setor_id, nome=None, responsavel=None, status=None, limpar_r
     cur.close()
     conn.close()
 
+
 def desativar_setor(setor_id):
     conn = get_connection()
     cur = conn.cursor()
@@ -72,3 +72,15 @@ def desativar_setor(setor_id):
     conn.commit()
     cur.close()
     conn.close()
+
+
+def buscar_setor_por_nome(nome):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, responsavel FROM setores WHERE nome=? AND status='Ativo'", (nome,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row:
+        return Setor(*row)
+    return None
