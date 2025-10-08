@@ -1,124 +1,149 @@
-# src/view/setor.py
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
-from tkinter import Listbox, messagebox, simpledialog
-from src.dao.setor_dao import listar_setores
+from tkinter import messagebox,simpledialog
 from src.dao import setor_dao, usuario_dao
-from src.model.setor import Setor 
+from src.model.setor import Setor
 
-# ===== Classe AbaSetor =====
 class AbaSetor:
     setores = []
 
     def __init__(self, notebook):
-        # ===== Inicialização da aba =====
         self.frame = tb.Frame(notebook, padding=10)
         notebook.add(self.frame, text="Setores")
 
-        # Lista usada para exibição (filtrada)
         self.setores_exibidos = AbaSetor.setores.copy()
+        self.setor_em_edicao = {"id": None}
 
-        # ===== Criação dos frames permanentes =====
-        self._criar_menu_acoes()
-        self._criar_pesquisa()
-        self._criar_lista_setores()
-        self._criar_frame_criar_setor()
+        # Montar os componentes
+        self._montar_formulario_criacao()
+        self._montar_botoes_acoes()
+        self._montar_pesquisa()
+        self._montar_tabela()
 
-        # Carrega dados existentes
         self.carregar_dados()
 
+    # ----------------- Formulário de criação/edição -----------------
+    def _montar_formulario_criacao(self):
+        self.frame_form = tb.Frame(self.frame)
+        self.frame_form.grid(row=0, column=0, columnspan=2, sticky="ew", pady=5)
+        self.frame_form.grid_remove()  # esconde inicialmente
 
-    def _criar_menu_acoes(self):
-        menu_frame1 = tb.Frame(self.frame)
-        menu_frame1.pack(fill="x", pady=(5,2))
-        tb.Button(menu_frame1, text="Criar Setor", bootstyle=SUCCESS, width=15,
-                  command=self.mostrar_criar_setor).pack(side=LEFT, padx=5)
-        tb.Button(menu_frame1, text="Alterar Responsável", bootstyle=INFO, width=18,
-                  command=self.alterar_responsavel_lista).pack(side=LEFT, padx=5)
-        tb.Button(menu_frame1, text="Remover Responsável", bootstyle=DANGER, width=18,
-                  command=self.remover_responsavel_lista).pack(side=LEFT, padx=5)
+        tb.Label(self.frame_form, text="Nome do Setor:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.entry_nome = tb.Entry(self.frame_form)
+        self.entry_nome.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
 
-        menu_frame2 = tb.Frame(self.frame)
-        menu_frame2.pack(fill="x", pady=(2,5))
-        tb.Button(menu_frame2, text="Renomear Setor", bootstyle=INFO, width=18,
-                  command=self.renomear_setor).pack(side=LEFT, padx=5)
-        tb.Button(menu_frame2, text="Remover Setor", bootstyle=DANGER, width=18,
-                  command=self.remover_setor).pack(side=LEFT, padx=5)
+        btn_frame = tb.Frame(self.frame_form)
+        btn_frame.grid(row=1, column=0, columnspan=2, pady=5)
+        tb.Button(btn_frame, text="OK", bootstyle=SUCCESS, command=self.criar_ou_atualizar_setor).pack(side=LEFT, padx=5)
+        tb.Button(btn_frame, text="Cancelar", bootstyle=SECONDARY, command=lambda: self.frame_form.grid_remove()).pack(side=LEFT, padx=5)
 
-    def _criar_pesquisa(self):
-        tb.Label(self.frame, text="Pesquisar Setor:").pack(pady=(10, 0))
-        self.entry_pesquisa = tb.Entry(self.frame, width=30)
-        self.entry_pesquisa.pack(pady=5)
+        self.frame.columnconfigure(1, weight=1)
+
+    # ----------------- Botões de ações -----------------
+    def _montar_botoes_acoes(self):
+        self.frame_botoes = tb.Frame(self.frame)
+        self.frame_botoes.grid(row=1, column=0, columnspan=2, pady=5, sticky="ew")
+
+        tb.Button(self.frame_botoes, text="Criar Setor", bootstyle=SUCCESS, width=15, command=self.mostrar_formulario).pack(side=LEFT, padx=5)
+        tb.Button(self.frame_botoes, text="Renomear Setor", bootstyle=INFO, width=15, command=self.renomear_setor).pack(side=LEFT, padx=5)
+        tb.Button(self.frame_botoes, text="Remover Setor", bootstyle=DANGER, width=15, command=self.remover_setor).pack(side=LEFT, padx=5)
+        tb.Button(self.frame_botoes, text="Alterar Responsável", bootstyle=INFO, width=18, command=self.alterar_responsavel).pack(side=LEFT, padx=5)
+        tb.Button(self.frame_botoes, text="Remover Responsável", bootstyle=DANGER, width=18, command=self.remover_responsavel).pack(side=LEFT, padx=5)
+
+    # ----------------- Pesquisa -----------------
+    def _montar_pesquisa(self):
+        tb.Label(self.frame, text="Pesquisar Setor:").grid(row=2, column=0, sticky="w", padx=5)
+        self.entry_pesquisa = tb.Entry(self.frame)
+        self.entry_pesquisa.grid(row=2, column=1, sticky="ew", padx=5)
         self.entry_pesquisa.bind("<KeyRelease>", self.pesquisar_setor)
 
-    def _criar_lista_setores(self):
-        self.lista_setores = Listbox(self.frame, width=60)
-        self.lista_setores.pack(pady=10, fill="both", expand=True)
-        self.lista_setores.bind("<Button-3>", self.mostrar_menu_contexto)
+    # ----------------- Tabela -----------------
+    def _montar_tabela(self):
+        colunas = ("ID", "Nome", "Responsável")
+        self.tree = tb.Treeview(self.frame, columns=colunas, show="headings", bootstyle=INFO)
+        for col in colunas:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=150, anchor="center")
+        self.tree.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=10)
 
-    def _criar_frame_criar_setor(self):
-        self.criar_frame = tb.Frame(self.frame)
-        self.criar_frame.pack_forget()
+        self.tree.tag_configure('par', background='#f2f2f2')
+        self.tree.tag_configure('impar', background='white')
 
-        tb.Label(self.criar_frame, text="Nome do Setor:").grid(row=0, column=0, sticky="w", pady=2)
-        self.entry_nome = tb.Entry(self.criar_frame, width=30)
-        self.entry_nome.grid(row=0, column=1, pady=2)
+        self.frame.rowconfigure(3, weight=1)
+        self.frame.columnconfigure(1, weight=1)
 
-        btn_frame = tb.Frame(self.criar_frame)
-        btn_frame.grid(row=2, column=0, columnspan=2, pady=5)
-        tb.Button(btn_frame, text="OK", bootstyle=SUCCESS, command=self.criar_setor).pack(side=LEFT, padx=5)
-        tb.Button(btn_frame, text="Cancelar", bootstyle=DANGER,
-                  command=lambda: self.criar_frame.pack_forget()).pack(side=LEFT, padx=5)
-
+    # ----------------- Carregar dados -----------------
     def carregar_dados(self):
-        setores_db = listar_setores()
-        AbaSetor.setores = setores_db  # setores_db já são objetos Setor
+        setores_db = setor_dao.listar_setores()
+        AbaSetor.setores = setores_db
         self.setores_exibidos = AbaSetor.setores.copy()
-        self.atualizar_lista()
+        self.atualizar_tabela()
 
+    def atualizar_tabela(self, setores=None):
+        self.tree.delete(*self.tree.get_children())
+        for i, s in enumerate(setores if setores is not None else self.setores_exibidos):
+            tag = 'par' if i % 2 == 0 else 'impar'
+            self.tree.insert("", "end", values=(s.id, s.nome, getattr(s, 'responsavel', '')), tags=(tag,))
 
-    def atualizar_lista(self, setores=None):
-        self.lista_setores.delete(0, tb.END)
-        for s in (setores if setores is not None else self.setores_exibidos):
-            self.lista_setores.insert(tb.END, str(s))
-
+    # ----------------- Pesquisa -----------------
     def pesquisar_setor(self, event=None):
         termo = self.entry_pesquisa.get().strip().lower()
         if termo:
             self.setores_exibidos = [s for s in AbaSetor.setores if termo in s.nome.lower()]
         else:
             self.setores_exibidos = AbaSetor.setores.copy()
-        self.atualizar_lista()
+        self.atualizar_tabela()
 
-    def mostrar_menu_contexto(self, event):
-        try:
-            idx = self.lista_setores.nearest(event.y)
-            self.lista_setores.selection_clear(0, tb.END)
-            self.lista_setores.selection_set(idx)
-        except IndexError:
-            pass
-
-    # ===== Ações dos botões =====
-    def mostrar_criar_setor(self):
+    # ----------------- Formulário -----------------
+    def mostrar_formulario(self):
         self.entry_nome.delete(0, tb.END)
-        self.criar_frame.pack(pady=5, fill="x")
+        self.setor_em_edicao["id"] = None
+        self.frame_form.grid(pady=5, sticky="ew")
 
-    def criar_setor(self):
+    def criar_ou_atualizar_setor(self):
         nome = self.entry_nome.get().strip()
-        if nome:
-            setor_dao.inserir_setor(nome, None)
-            self.entry_nome.delete(0, tb.END)
-            self.criar_frame.pack_forget()
-            self.carregar_dados()
-        else:
+        if not nome:
             messagebox.showwarning("Atenção", "Digite um nome válido!")
+            return
 
-    def alterar_responsavel_lista(self):
-        sel = self.lista_setores.curselection()
+        if self.setor_em_edicao["id"]:
+            setor_dao.atualizar_setor(self.setor_em_edicao["id"], nome=nome)
+            messagebox.showinfo("Sucesso", "Setor atualizado!")
+        else:
+            setor_dao.inserir_setor(nome, None)
+            messagebox.showinfo("Sucesso", "Setor criado!")
+
+        self.frame_form.grid_remove()
+        self.carregar_dados()
+
+    # ----------------- Ações -----------------
+    def renomear_setor(self):
+        sel = self.tree.selection()
+        if sel:
+            item = self.tree.item(sel[0])
+            setor_id = item["values"][0]
+            novo_nome = simpledialog.askstring("Renomear Setor", "Novo nome do setor:")
+            if novo_nome:
+                setor_dao.atualizar_setor(setor_id, nome=novo_nome)
+                self.carregar_dados()
+
+    def remover_setor(self):
+        sel = self.tree.selection()
+        if sel:
+            item = self.tree.item(sel[0])
+            setor_id = item["values"][0]
+            nome = item["values"][1]
+            if messagebox.askyesno("Confirmação", f"Tem certeza que deseja remover o setor {nome}?"):
+                setor_dao.desativar_setor(setor_id)
+                self.carregar_dados()
+
+    def alterar_responsavel(self):
+        sel = self.tree.selection()
         if not sel:
             messagebox.showwarning("Atenção", "Selecione um setor primeiro.")
             return
-        setor = self.setores_exibidos[sel[0]]
+        item = self.tree.item(sel[0])
+        setor_id = item["values"][0]
 
         win = tb.Toplevel(self.frame)
         win.title("Definir Responsável")
@@ -137,36 +162,20 @@ class AbaSetor:
         def salvar():
             responsavel_nome = combo_responsavel.get()
             if responsavel_nome:
-                setor_dao.atualizar_setor(setor.id, responsavel=responsavel_nome)
+                setor_dao.atualizar_setor(setor_id, responsavel=responsavel_nome)
                 self.carregar_dados()
                 win.destroy()
             else:
                 messagebox.showwarning("Atenção", "Selecione um responsável!")
 
         tb.Button(btn_frame, text="Confirmar", bootstyle=SUCCESS, command=salvar).pack(side=LEFT, padx=5)
-        tb.Button(btn_frame, text="Cancelar", bootstyle=DANGER, command=win.destroy).pack(side=LEFT, padx=5)
+        tb.Button(btn_frame, text="Cancelar", bootstyle=SECONDARY, command=win.destroy).pack(side=LEFT, padx=5)
 
-    def remover_responsavel_lista(self):
-        sel = self.lista_setores.curselection()
+    def remover_responsavel(self):
+        sel = self.tree.selection()
         if sel:
-            setor = self.setores_exibidos[sel[0]]
-            setor_dao.atualizar_setor(setor.id, limpar_resp=True)
+            item = self.tree.item(sel[0])
+            setor_id = item["values"][0]
+            setor_dao.atualizar_setor(setor_id, limpar_resp=True)
             self.carregar_dados()
-
-    def renomear_setor(self):
-        sel = self.lista_setores.curselection()
-        if sel:
-            setor = self.setores_exibidos[sel[0]]
-            novo_nome = simpledialog.askstring("Renomear Setor", f"Novo nome para {setor.nome}:")
-            if novo_nome:
-                setor_dao.atualizar_setor(setor.id, nome=novo_nome)
-                self.carregar_dados()
-
-    def remover_setor(self):
-        sel = self.lista_setores.curselection()
-        if sel:
-            setor = self.setores_exibidos[sel[0]]
-            if messagebox.askyesno("Confirmação", f"Tem certeza que deseja remover o setor {setor.nome}?"):
-                setor_dao.desativar_setor(setor.id)
-                self.carregar_dados()
 
