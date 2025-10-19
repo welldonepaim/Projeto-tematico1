@@ -8,7 +8,6 @@ from ttkbootstrap.constants import *
 from src.view.painel import AbaPainel
 from src.view.usuario import AbaUsuario
 from src.view.setor import AbaSetor
-from src.view.planejamento import AbaPlanejamento
 from src.view.equipamento import AbaEquipamento
 from src.view.manutencao import AbaManutencao
 from src.dao.usuario_dao import verificar_login
@@ -61,7 +60,7 @@ class App:
         self.aba_setor = AbaSetor(self.notebook)
         self.aba_equipamento = AbaEquipamento(self.notebook)
         self.aba_manutencao = AbaManutencao(self.notebook)
-        self.aba_manutencao = AbaPlanejamento(self.notebook)
+     
 
         # Conecta evento de mudança de aba
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)

@@ -5,6 +5,8 @@ from tkinter import messagebox
 from src.model.manutencao import Manutencao
 from src.dao import manutencao_dao, usuario_dao, equipamento_dao
 from datetime import date, datetime
+from src.model.usuario import Usuario
+from src.model.equipamento import Equipamento
 
 
 class AbaManutencao:
@@ -28,8 +30,8 @@ class AbaManutencao:
     def _montar_formulario(self):
         labels = [
             "Tipo", "Equipamento", "Responsável", 
-            "Data Prevista", "Data Execução", 
-            "Documento", "Ações Realizadas", "Observações", "Status"
+            "Data Prevista", 
+            "Documento", "Ações Realizadas", "Observações", "Status","Prioridade"
         ]
 
         for i, label in enumerate(labels):
@@ -39,7 +41,11 @@ class AbaManutencao:
                 combo = tb.Combobox(self.frame, values=["Preventiva", "Corretiva", "Preditiva"], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
-
+            elif label == "Prioridade":
+                combo = tb.Combobox(self.frame, values=["Urgente", "Alta", "Média","Baixa","Sem Prioridade"], state="readonly")
+                combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
+                self.entries[label] = combo            
+                            
             elif label == "Equipamento":
                 equipamentos = equipamento_dao.listar_equipamentos()
                 combo = tb.Combobox(self.frame, values=[f"{e.id} - {e.nome}" for e in equipamentos], state="readonly")
@@ -52,7 +58,7 @@ class AbaManutencao:
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
 
-            elif label in ("Data Prevista", "Data Execução"):
+            elif label in ("Data Prevista"):
                 entry = tb.DateEntry(self.frame, dateformat="%d/%m/%Y", bootstyle=INFO)
                 entry.set_date(datetime.today().date())
                 entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
@@ -86,7 +92,7 @@ class AbaManutencao:
 
     # ----------------- TABELA -----------------
     def _montar_tabela(self):
-        colunas = ("ID", "Tipo", "Equipamento", "Responsável", "Data Prevista", "Data Execução", "Status")
+        colunas = ("ID", "Tipo", "Equipamento", "Responsável", "Data Prevista", "Prioridade", "Status")
         self.tree = tb.Treeview(self.frame, columns=colunas, show="headings", bootstyle=INFO)
         for col in colunas:
             self.tree.heading(col, text=col)
@@ -116,7 +122,7 @@ class AbaManutencao:
             tag = 'par' if i % 2 == 0 else 'impar'
             self.tree.insert("", "end", values=(
                 m.id, m.tipo, m.equipamento.nome, m.responsavel.nome, 
-                m.data_prevista, m.data_execucao, m.status
+                m.data_prevista,m.prioridade, m.status
             ), tags=(tag,))
 
     # ----------------- SALVAR -----------------
@@ -127,13 +133,11 @@ class AbaManutencao:
             responsavel_str = self.entries["Responsável"].get()
 
             data_prevista = datetime.strptime(self.entries["Data Prevista"].entry.get(), "%d/%m/%Y").date()
-            data_execucao = self.entries["Data Execução"].entry.get()
-            if data_execucao:
-                data_execucao = datetime.strptime(data_execucao, "%d/%m/%Y").date()
-
+            
             documento = self.entries["Documento"].get()
             acoes = self.entries["Ações Realizadas"].get()
             obs = self.entries["Observações"].get()
+            prioridade=self.entries["Prioridade"].get()
             status = self.entries["Status"].get()
 
             if not (tipo and equipamento_str and responsavel_str and data_prevista and status):
@@ -143,9 +147,7 @@ class AbaManutencao:
             equipamento_id = int(equipamento_str.split(" - ")[0])
             responsavel_id = int(responsavel_str.split(" - ")[0])
 
-            from src.model.usuario import Usuario
-            from src.model.equipamento import Equipamento
-
+            
             equipamento = equipamento_dao.buscar_equipamento_por_id(equipamento_id)
             responsavel = usuario_dao.buscar_usuario_por_id(responsavel_id)
 
@@ -155,10 +157,10 @@ class AbaManutencao:
                 equipamento=equipamento,
                 responsavel=responsavel,
                 data_prevista=data_prevista,
-                data_execucao=data_execucao,
                 documento=documento,
                 acoes_realizadas=acoes,
                 observacoes=obs,
+                prioridade=prioridade,
                 status=status
             )
 
@@ -196,14 +198,14 @@ class AbaManutencao:
         self.entries["Equipamento"].set(f"{manutencao.equipamento.id} - {manutencao.equipamento.nome}")
         self.entries["Responsável"].set(f"{manutencao.responsavel.id} - {manutencao.responsavel.nome}")
         self.entries["Data Prevista"].set_date(manutencao.data_prevista)
-        if manutencao.data_execucao:
-            self.entries["Data Execução"].set_date(manutencao.data_execucao)
         self.entries["Documento"].delete(0, "end")
         self.entries["Documento"].insert(0, manutencao.documento or "")
         self.entries["Ações Realizadas"].delete(0, "end")
         self.entries["Ações Realizadas"].insert(0, manutencao.acoes_realizadas or "")
         self.entries["Observações"].delete(0, "end")
         self.entries["Observações"].insert(0, manutencao.observacoes or "")
+        self.entries["Prioridade"].set(manutencao.prioridade)
+
         self.entries["Status"].set(manutencao.status)
 
         self.btn_salvar.config(text="Atualizar Manutenção", bootstyle=WARNING)
