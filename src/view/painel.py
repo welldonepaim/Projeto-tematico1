@@ -1,8 +1,8 @@
+from datetime import datetime
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
-from tkinter import Tk, Frame, Label
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from tkinter import LEFT, RIGHT, Y
+from src.dao import manutencao_dao  # Ajuste para o caminho correto
 
 class AbaPainel:
     def __init__(self, notebook):
@@ -21,6 +21,7 @@ class AbaPainel:
         # Monta a interface
         self._montar_cards()
         self._montar_graficos()
+        self._montar_os_mes()
         self._montar_alertas()
 
     # ----------------- Cards de resumo -----------------
@@ -46,6 +47,9 @@ class AbaPainel:
         frame_graficos = tb.Frame(self.frame)
         frame_graficos.pack(fill="both", expand=True, pady=10)
 
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
         # Gráfico 1: Usuários ativos vs inativos (pizza)
         fig1, ax1 = plt.subplots(figsize=(3,3))
         ax1.pie(
@@ -56,14 +60,55 @@ class AbaPainel:
         )
         ax1.set_title("Usuários")
         canvas1 = FigureCanvasTkAgg(fig1, master=frame_graficos)
-        canvas1.get_tk_widget().pack(side="left", expand=True)
+        canvas1.get_tk_widget().pack(side=LEFT, expand=True)
 
         # Gráfico 2: Ordens abertas vs encerradas (barra)
         fig2, ax2 = plt.subplots(figsize=(3,3))
         ax2.bar(["Abertas", "Encerradas"], [self.ordens_abertas, self.ordens_encerradas], color=["#f39c12", "#5dade2"])
         ax2.set_title("Ordens de Serviço")
         canvas2 = FigureCanvasTkAgg(fig2, master=frame_graficos)
-        canvas2.get_tk_widget().pack(side="left", expand=True)
+        canvas2.get_tk_widget().pack(side=LEFT, expand=True)
+
+    # ----------------- OS do mês -----------------
+    def _montar_os_mes(self):
+        frame_os = tb.Frame(self.frame)
+        frame_os.pack(fill="both", expand=False, pady=10)
+
+        tb.Label(frame_os, text="Ordens de Serviço deste mês", font=("Arial", 12, "bold")).pack(anchor="w")
+
+        # Scrollbar vertical
+        scrollbar = tb.Scrollbar(frame_os)
+        scrollbar.pack(side=RIGHT, fill=Y)
+
+        colunas = ("ID", "Tipo", "Equipamento", "Responsável", "Data Prevista", "Status")
+        self.tree_os = tb.Treeview(frame_os, columns=colunas, show="headings", yscrollcommand=scrollbar.set, height=5)
+        for col in colunas:
+            self.tree_os.heading(col, text=col)
+            self.tree_os.column(col, width=120, anchor="center")
+        self.tree_os.pack(fill="both", expand=True)
+
+        scrollbar.config(command=self.tree_os.yview)
+
+        self.tree_os.tag_configure('par', background='#f2f2f2')
+        self.tree_os.tag_configure('impar', background='white')
+
+        self.carregar_os_mes()
+
+    def carregar_os_mes(self):
+        for item in self.tree_os.get_children():
+            self.tree_os.delete(item)
+
+        hoje = datetime.today()
+        manutencoes = manutencao_dao.listar_manutencoes()
+        # Filtra OS do mês atual
+        os_mes = [m for m in manutencoes if m.data_prevista and m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year]
+
+        for i, m in enumerate(os_mes):
+            tag = 'par' if i % 2 == 0 else 'impar'
+            eq = m.equipamento.nome if m.equipamento else "N/A"
+            resp = m.responsavel.nome if m.responsavel else "N/A"
+            data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
+            self.tree_os.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.status), tags=(tag,))
 
     # ----------------- Alertas -----------------
     def _montar_alertas(self):
@@ -77,14 +122,4 @@ class AbaPainel:
 
         for msg in mensagens:
             tb.Label(frame_alertas, text=msg, font=("Arial", 11), bootstyle=INFO).pack(anchor="w", pady=2)
-
-# ----------------- Teste da interface -----------------
-if __name__ == "__main__":
-    root = tb.Window(title="Painel do Sistema", themename="superhero", size=(900,600))
-    notebook = tb.Notebook(root)
-    notebook.pack(fill="both", expand=True)
-
-    AbaPainel(notebook)
-
-    root.mainloop()
 

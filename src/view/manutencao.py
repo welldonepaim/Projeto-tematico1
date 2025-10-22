@@ -1,18 +1,29 @@
 from src.model import session
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
-from tkinter import messagebox
+from tkinter import messagebox, LEFT
 from src.model.manutencao import Manutencao
 from src.dao import manutencao_dao, usuario_dao, equipamento_dao
 from datetime import date, datetime
-from src.model.usuario import Usuario
-from src.model.equipamento import Equipamento
 
 
 class AbaManutencao:
     def __init__(self, notebook):
-        self.frame = tb.Frame(notebook, padding=10)
+        self.frame = tb.Frame(notebook, padding=0)
         notebook.add(self.frame, text="Manutenções")
+
+        self.canvas = tb.Canvas(self.frame)
+        self.scrollbar = tb.Scrollbar(self.frame, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        self.frame.columnconfigure(0, weight=1)
+        self.frame.rowconfigure(0, weight=1)
+
+        self.inner_frame = tb.Frame(self.canvas, padding=10)
+        self.canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
+        self.inner_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
         self.entries = {}
         self.manutencao_em_edicao = {"id": None}
@@ -20,67 +31,65 @@ class AbaManutencao:
         self._montar_formulario()
         self._montar_botoes()
         self._montar_tabela()
-        
+
         self._atualizar_equipamentos()
         self._atualizar_usuarios()
         self.carregar_dados()
 
-
-    # ----------------- FORMULÁRIO -----------------
     def _montar_formulario(self):
         labels = [
-            "Tipo", "Equipamento", "Responsável", 
-            "Data Prevista", 
-            "Documento", "Ações Realizadas", "Observações", "Status","Prioridade"
+            "Tipo", "Equipamento", "Responsável",
+            "Data Prevista", "Documento", "Ações Realizadas",
+            "Observações", "Status", "Prioridade"
         ]
 
         for i, label in enumerate(labels):
-            tb.Label(self.frame, text=label + ":", anchor="w").grid(row=i, column=0, padx=5, pady=5, sticky="w")
+            tb.Label(self.inner_frame, text=label + ":", anchor="w").grid(row=i, column=0, padx=5, pady=5, sticky="w")
 
             if label == "Tipo":
-                combo = tb.Combobox(self.frame, values=["Preventiva", "Corretiva", "Preditiva"], state="readonly")
+                combo = tb.Combobox(self.inner_frame, values=["Preventiva", "Corretiva", "Preditiva"], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
+
             elif label == "Prioridade":
-                combo = tb.Combobox(self.frame, values=["Urgente", "Alta", "Média","Baixa","Sem Prioridade"], state="readonly")
+                combo = tb.Combobox(self.inner_frame, values=["Urgente", "Alta", "Média", "Baixa", "Sem Prioridade"], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
-                self.entries[label] = combo            
-                            
+                self.entries[label] = combo
+
             elif label == "Equipamento":
                 equipamentos = equipamento_dao.listar_equipamentos()
-                combo = tb.Combobox(self.frame, values=[f"{e.id} - {e.nome}" for e in equipamentos], state="readonly")
+                combo = tb.Combobox(self.inner_frame, values=[f"{e.id} - {e.nome}" for e in equipamentos], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
 
             elif label == "Responsável":
                 usuarios = usuario_dao.listar_usuarios()
-                combo = tb.Combobox(self.frame, values=[f"{u.id} - {u.nome}" for u in usuarios], state="readonly")
+                combo = tb.Combobox(self.inner_frame, values=[f"{u.id} - {u.nome}" for u in usuarios], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
 
-            elif label in ("Data Prevista"):
-                entry = tb.DateEntry(self.frame, dateformat="%d/%m/%Y", bootstyle=INFO)
+            elif label == "Data Prevista":
+                entry = tb.DateEntry(self.inner_frame, dateformat="%d/%m/%Y", bootstyle=INFO)
                 entry.set_date(datetime.today().date())
                 entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = entry
 
             elif label in ("Documento", "Ações Realizadas", "Observações"):
-                entry = tb.Entry(self.frame)
+                entry = tb.Entry(self.inner_frame)
                 entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = entry
 
             elif label == "Status":
-                combo = tb.Combobox(self.frame, values=[
-                    "Pendente", "Em Análise", "Em Manutenção", 
+                combo = tb.Combobox(self.inner_frame, values=[
+                     "Programada","Pendente","Em Análise", "Em Manutenção",
                     "Concluída", "Revisada", "Disponível", "Descontinuado"
                 ])
                 combo.set("Pendente")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
 
-    # ----------------- BOTÕES FORM -----------------
     def _montar_botoes(self):
-        frame_botoes_form = tb.Frame(self.frame)
+        frame_botoes_form = tb.Frame(self.inner_frame)
         frame_botoes_form.grid(row=9, column=0, columnspan=2, pady=15, sticky="ew")
 
         self.btn_salvar = tb.Button(frame_botoes_form, text="Salvar Manutenção", bootstyle=SUCCESS, command=self.salvar)
@@ -90,42 +99,62 @@ class AbaManutencao:
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()
 
-    # ----------------- TABELA -----------------
     def _montar_tabela(self):
+        frame_tabela = tb.Frame(self.inner_frame)
+        frame_tabela.grid(row=10, column=0, columnspan=2, pady=5, sticky="nsew")
+
+        frame_pesquisa = tb.Frame(frame_tabela)
+        frame_pesquisa.pack(fill="x", pady=5)
+        tb.Label(frame_pesquisa, text="Pesquisar:").pack(side=LEFT, padx=5)
+        self.entry_pesquisa = tb.Entry(frame_pesquisa)
+        self.entry_pesquisa.pack(side=LEFT, fill="x", expand=True, padx=5)
+        tb.Button(frame_pesquisa, text="Buscar", bootstyle=INFO, command=self.pesquisar_manutencao).pack(side=LEFT, padx=5)
+        tb.Button(frame_pesquisa, text="Limpar", bootstyle=SECONDARY, command=self.carregar_dados).pack(side=LEFT, padx=5)
+
         colunas = ("ID", "Tipo", "Equipamento", "Responsável", "Data Prevista", "Prioridade", "Status")
-        self.tree = tb.Treeview(self.frame, columns=colunas, show="headings", bootstyle=INFO)
+        self.tree = tb.Treeview(frame_tabela, columns=colunas, show="headings", bootstyle=INFO)
         for col in colunas:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=120, anchor="center")
-        self.tree.grid(row=10, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.tree.pack(fill="both", expand=True)
 
-        # alternância de cores
         self.tree.tag_configure('par', background='#f2f2f2')
         self.tree.tag_configure('impar', background='white')
 
-        self.frame.columnconfigure(1, weight=1)
-        self.frame.rowconfigure(10, weight=1)
+        frame_botoes = tb.Frame(frame_tabela)
+        frame_botoes.pack(pady=5)
+        tb.Button(frame_botoes, text="Editar", bootstyle=WARNING, command=self.editar).pack(side=LEFT, padx=5)
+        tb.Button(frame_botoes, text="Excluir", bootstyle=DANGER, command=self.excluir).pack(side=LEFT, padx=5)
 
-        frame_botoes = tb.Frame(self.frame)
-        frame_botoes.grid(row=11, column=0, columnspan=2, pady=10)
-
-        tb.Button(frame_botoes, text="Editar Manutenção", bootstyle=WARNING, command=self.editar).pack(side=LEFT, padx=5)
-        tb.Button(frame_botoes, text="Excluir Manutenção", bootstyle=DANGER, command=self.excluir).pack(side=LEFT, padx=5)
-
-    # ----------------- CARREGAR -----------------
     def carregar_dados(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-
         manutencoes = manutencao_dao.listar_manutencoes()
         for i, m in enumerate(manutencoes):
             tag = 'par' if i % 2 == 0 else 'impar'
-            self.tree.insert("", "end", values=(
-                m.id, m.tipo, m.equipamento.nome, m.responsavel.nome, 
-                m.data_prevista,m.prioridade, m.status
-            ), tags=(tag,))
+            eq = m.equipamento.nome if m.equipamento else "N/A"
+            resp = m.responsavel.nome if m.responsavel else "N/A"
+            data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
+            self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
 
-    # ----------------- SALVAR -----------------
+    def pesquisar_manutencao(self):
+        termo = self.entry_pesquisa.get().strip().lower()
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        manutencoes = manutencao_dao.listar_manutencoes()
+        filtrados = [
+            m for m in manutencoes
+            if termo in (m.tipo or "").lower()
+            or termo in (m.equipamento.nome if m.equipamento else "").lower()
+            or termo in (m.responsavel.nome if m.responsavel else "").lower()
+        ]
+        for i, m in enumerate(filtrados):
+            tag = 'par' if i % 2 == 0 else 'impar'
+            eq = m.equipamento.nome if m.equipamento else "N/A"
+            resp = m.responsavel.nome if m.responsavel else "N/A"
+            data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
+            self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
+
     def salvar(self):
         try:
             tipo = self.entries["Tipo"].get()
@@ -133,11 +162,10 @@ class AbaManutencao:
             responsavel_str = self.entries["Responsável"].get()
 
             data_prevista = datetime.strptime(self.entries["Data Prevista"].entry.get(), "%d/%m/%Y").date()
-            
             documento = self.entries["Documento"].get()
             acoes = self.entries["Ações Realizadas"].get()
             obs = self.entries["Observações"].get()
-            prioridade=self.entries["Prioridade"].get()
+            prioridade = self.entries["Prioridade"].get()
             status = self.entries["Status"].get()
 
             if not (tipo and equipamento_str and responsavel_str and data_prevista and status):
@@ -147,7 +175,6 @@ class AbaManutencao:
             equipamento_id = int(equipamento_str.split(" - ")[0])
             responsavel_id = int(responsavel_str.split(" - ")[0])
 
-            
             equipamento = equipamento_dao.buscar_equipamento_por_id(equipamento_id)
             responsavel = usuario_dao.buscar_usuario_por_id(responsavel_id)
 
@@ -177,7 +204,6 @@ class AbaManutencao:
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
 
-    # ----------------- EDITAR -----------------
     def editar(self):
         selecionado = self.tree.selection()
         if not selecionado:
@@ -205,13 +231,11 @@ class AbaManutencao:
         self.entries["Observações"].delete(0, "end")
         self.entries["Observações"].insert(0, manutencao.observacoes or "")
         self.entries["Prioridade"].set(manutencao.prioridade)
-
         self.entries["Status"].set(manutencao.status)
 
         self.btn_salvar.config(text="Atualizar Manutenção", bootstyle=WARNING)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
-    # ----------------- EXCLUIR -----------------
     def excluir(self):
         selecionado = self.tree.selection()
         if not selecionado:
@@ -230,7 +254,6 @@ class AbaManutencao:
             except Exception as e:
                 messagebox.showerror("Erro", f"Não foi possível excluir: {e}")
 
-    # ----------------- LIMPAR / CANCELAR -----------------
     def limpar_formulario(self):
         for entry in self.entries.values():
             if isinstance(entry, tb.Entry):
@@ -261,3 +284,4 @@ class AbaManutencao:
             combo_resp['values'] = [f"{u.id} - {u.nome}" for u in self.usuarios]
             if self.usuarios:
                 combo_resp.set(f"{self.usuarios[0].id} - {self.usuarios[0].nome}")
+

@@ -21,14 +21,16 @@ def criar_tabela_manutencao():
                 acoes_realizadas TEXT,
                 observacoes TEXT,
                 status TEXT CHECK(status IN (
-                    'Pendente','Em Análise','Em Manutenção','Concluída','Revisada','Disponível','Descontinuado'
+                'Programada','Pendente','Em Análise','Em Manutenção','Concluída','Revisada','Disponível','Descontinuado'
                 )) NOT NULL,
                 prioridade TEXT CHECK(prioridade IN ('Urgente','Alta','Média','Baixa','Sem Prioridade')) NOT NULL DEFAULT 'Sem Prioridade',
                 FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id),
                 FOREIGN KEY (responsavel_id) REFERENCES usuarios(id)
             )
         """)
-        conn.commit()
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def inserir_manutencao(manutencao: Manutencao) -> int:
