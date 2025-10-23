@@ -35,7 +35,8 @@ class AbaManutencao:
         self._atualizar_equipamentos()
         self._atualizar_usuarios()
         self.carregar_dados()
-
+                
+##############  Formulário
     def _montar_formulario(self):
         labels = [
             "Tipo", "Equipamento", "Responsável",
@@ -84,9 +85,11 @@ class AbaManutencao:
                      "Programada","Pendente","Em Análise", "Em Manutenção",
                     "Concluída", "Revisada", "Disponível", "Descontinuado"
                 ])
-                combo.set("Pendente")
+                combo.set("Programada")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
+                
+##############  Botões
 
     def _montar_botoes(self):
         frame_botoes_form = tb.Frame(self.inner_frame)
@@ -98,6 +101,10 @@ class AbaManutencao:
         self.btn_cancelar = tb.Button(frame_botoes_form, text="Cancelar", bootstyle=SECONDARY, command=self.cancelar_edicao)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()
+        
+        
+############### Tabela
+
 
     def _montar_tabela(self):
         frame_tabela = tb.Frame(self.inner_frame)
@@ -154,6 +161,40 @@ class AbaManutencao:
             resp = m.responsavel.nome if m.responsavel else "N/A"
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
+            
+            
+############# Carregar dados
+    def editar(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Atenção", "Selecione uma manutenção para editar.")
+            return
+
+        item = self.tree.item(selecionado[0])
+        valores = item["values"]
+        manutencao_id = valores[0]
+
+        manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
+        if not manutencao:
+            messagebox.showerror("Erro", "Manutenção não encontrada.")
+            return
+
+        self.manutencao_em_edicao["id"] = manutencao.id
+        self.entries["Tipo"].set(manutencao.tipo)
+        self.entries["Equipamento"].set(f"{manutencao.equipamento.id} - {manutencao.equipamento.nome}")
+        self.entries["Responsável"].set(f"{manutencao.responsavel.id} - {manutencao.responsavel.nome}")
+        self.entries["Data Prevista"].set_date(manutencao.data_prevista)
+        self.entries["Documento"].delete(0, "end")
+        self.entries["Documento"].insert(0, manutencao.documento or "")
+        self.entries["Ações Realizadas"].delete(0, "end")
+        self.entries["Ações Realizadas"].insert(0, manutencao.acoes_realizadas or "")
+        self.entries["Observações"].delete(0, "end")
+        self.entries["Observações"].insert(0, manutencao.observacoes or "")
+        self.entries["Prioridade"].set(manutencao.prioridade)
+        self.entries["Status"].set(manutencao.status)
+
+        self.btn_salvar.config(text="Atualizar Manutenção", bootstyle=WARNING)
+        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
     def salvar(self):
         try:
@@ -204,38 +245,8 @@ class AbaManutencao:
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
 
-    def editar(self):
-        selecionado = self.tree.selection()
-        if not selecionado:
-            messagebox.showwarning("Atenção", "Selecione uma manutenção para editar.")
-            return
-
-        item = self.tree.item(selecionado[0])
-        valores = item["values"]
-        manutencao_id = valores[0]
-
-        manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
-        if not manutencao:
-            messagebox.showerror("Erro", "Manutenção não encontrada.")
-            return
-
-        self.manutencao_em_edicao["id"] = manutencao.id
-        self.entries["Tipo"].set(manutencao.tipo)
-        self.entries["Equipamento"].set(f"{manutencao.equipamento.id} - {manutencao.equipamento.nome}")
-        self.entries["Responsável"].set(f"{manutencao.responsavel.id} - {manutencao.responsavel.nome}")
-        self.entries["Data Prevista"].set_date(manutencao.data_prevista)
-        self.entries["Documento"].delete(0, "end")
-        self.entries["Documento"].insert(0, manutencao.documento or "")
-        self.entries["Ações Realizadas"].delete(0, "end")
-        self.entries["Ações Realizadas"].insert(0, manutencao.acoes_realizadas or "")
-        self.entries["Observações"].delete(0, "end")
-        self.entries["Observações"].insert(0, manutencao.observacoes or "")
-        self.entries["Prioridade"].set(manutencao.prioridade)
-        self.entries["Status"].set(manutencao.status)
-
-        self.btn_salvar.config(text="Atualizar Manutenção", bootstyle=WARNING)
-        self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
-
+##############  Editar
+   
     def excluir(self):
         selecionado = self.tree.selection()
         if not selecionado:
@@ -284,4 +295,3 @@ class AbaManutencao:
             combo_resp['values'] = [f"{u.id} - {u.nome}" for u in self.usuarios]
             if self.usuarios:
                 combo_resp.set(f"{self.usuarios[0].id} - {self.usuarios[0].nome}")
-

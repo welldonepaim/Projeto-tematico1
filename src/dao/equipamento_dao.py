@@ -15,7 +15,7 @@ def criar_tabela_equipamento():
             tipo TEXT NOT NULL,
             numero_serie TEXT UNIQUE,
             setor_id INTEGER,
-            status TEXT CHECK(status IN ('Disponível', 'Em Manutenção', 'Indisponível')) NOT NULL DEFAULT 'Disponível',
+            status TEXT CHECK(status IN ('Disponível', 'Indisponível')) NOT NULL DEFAULT 'Disponível',
             fabricante TEXT,
             data_aquisicao DATE
         )

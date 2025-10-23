@@ -21,16 +21,14 @@ def criar_tabela_manutencao():
                 acoes_realizadas TEXT,
                 observacoes TEXT,
                 status TEXT CHECK(status IN (
-                'Programada','Pendente','Em Análise','Em Manutenção','Concluída','Revisada','Disponível','Descontinuado'
+                    'Programada','Pendente','Em Análise','Em Manutenção','Concluída','Revisada','Disponível','Descontinuado'
                 )) NOT NULL,
                 prioridade TEXT CHECK(prioridade IN ('Urgente','Alta','Média','Baixa','Sem Prioridade')) NOT NULL DEFAULT 'Sem Prioridade',
                 FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id),
                 FOREIGN KEY (responsavel_id) REFERENCES usuarios(id)
             )
         """)
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
 
 
 def inserir_manutencao(manutencao: Manutencao) -> int:
@@ -53,6 +51,19 @@ def inserir_manutencao(manutencao: Manutencao) -> int:
             manutencao.prioridade or "Sem Prioridade"
         ))
         return cur.lastrowid
+
+
+def _parse_date(data_str: Optional[str]) -> Optional[date]:
+    """Converte string de data do SQLite para datetime.date"""
+    if not data_str:
+        return None
+    data_str = str(data_str)
+    if "T" in data_str:
+        data_str = data_str.split("T")[0]
+    try:
+        return datetime.strptime(data_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def listar_manutencoes() -> List[Manutencao]:
@@ -78,7 +89,7 @@ def listar_manutencoes() -> List[Manutencao]:
                 id=row[10], nome=row[11], login=row[12], senha=row[13],
                 perfil=row[14], contato=row[15], status=row[16]
             )
-            data_prevista = datetime.strptime(row[17], "%Y-%m-%d").date() if row[17] else None
+            data_prevista = _parse_date(row[17])
 
             manutencao = Manutencao(
                 id=row[0], tipo=row[1],
@@ -118,7 +129,7 @@ def buscar_manutencao_por_id(manutencao_id: int) -> Optional[Manutencao]:
                 id=row[10], nome=row[11], login=row[12], senha=row[13],
                 perfil=row[14], contato=row[15], status=row[16]
             )
-            data_prevista = datetime.strptime(row[17], "%Y-%m-%d").date() if row[17] else None
+            data_prevista = _parse_date(row[17])
 
             return Manutencao(
                 id=row[0], tipo=row[1],

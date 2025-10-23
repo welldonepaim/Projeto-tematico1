@@ -1,4 +1,3 @@
-
 from src.model import session
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
@@ -36,32 +35,39 @@ class AbaEquipamento:
         return True
 
     def _montar_formulario(self):
-        labels = ["Nome", "Tipo", "Número de Série", "Setor", "Status", "Fabricante", "Data de Aquisição"]
+            labels = ["Nome", "Tipo", "Número de Série", "Setor", "Status", "Fabricante", "Data de Aquisição"]
 
-        for i, label in enumerate(labels):
-            tb.Label(self.frame, text=label + ":", anchor="w").grid(row=i, column=0, padx=5, pady=5, sticky="w")
+            for i, label in enumerate(labels):
+                # Label alinhada à direita, próxima do campo
+                tb.Label(self.frame, text=label + ":", anchor="e").grid(
+                    row=i, column=0, padx=5, pady=2, sticky="e"
+                )
 
-            if label == "Status":
-                combo = tb.Combobox(self.frame, values=["Disponível", "Em Manutenção", "Indisponível"])
-                combo.set("Disponível")
-                combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
-                self.entries[label] = combo
+                if label == "Status":
+                    combo = tb.Combobox(self.frame, values=["Disponível", "Indisponível"], width=25)
+                    combo.set("Disponível")
+                    combo.grid(row=i, column=1, padx=5, pady=2, sticky="we")
+                    self.entries[label] = combo
 
-            elif label == "Setor":
-                combo_setor = tb.Combobox(self.frame, state="readonly")
-                combo_setor.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
-                self.entries[label] = combo_setor
+                elif label == "Setor":
+                    combo_setor = tb.Combobox(self.frame, state="readonly", width=25)
+                    combo_setor.grid(row=i, column=1, padx=5, pady=2, sticky="we")
+                    self.entries[label] = combo_setor
 
-            elif "Data" in label:
-                date_entry = tb.DateEntry(self.frame, dateformat="%d/%m/%Y")
-                date_entry.set_date(datetime.today().date())
-                date_entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
-                self.entries[label] = date_entry
+                elif "Data" in label:
+                    date_entry = tb.DateEntry(self.frame, dateformat="%d/%m/%Y", width=22)
+                    date_entry.set_date(datetime.today().date())
+                    date_entry.grid(row=i, column=1, padx=5, pady=2, sticky="we")
+                    self.entries[label] = date_entry
 
-            else:
-                entry = tb.Entry(self.frame)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
-                self.entries[label] = entry
+                else:
+                    entry = tb.Entry(self.frame, width=25)
+                    entry.grid(row=i, column=1, padx=5, pady=2, sticky="we")
+                    self.entries[label] = entry
+
+            # Ajusta largura das colunas
+            self.frame.columnconfigure(0, weight=0)  # coluna de labels
+            self.frame.columnconfigure(1, weight=1)  # coluna de campos
 
     def _montar_botoes(self):
         frame_botoes_form = tb.Frame(self.frame)
@@ -73,7 +79,7 @@ class AbaEquipamento:
         self.btn_cancelar = tb.Button(frame_botoes_form, text="Cancelar", bootstyle=SECONDARY, command=self.cancelar_edicao)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()
-
+   
     def _montar_tabela(self):
         frame_pesquisa = tb.Frame(self.frame)
         frame_pesquisa.grid(row=8, column=0, columnspan=2, pady=5, sticky="ew")
@@ -85,6 +91,7 @@ class AbaEquipamento:
         tb.Button(frame_pesquisa, text="Buscar", bootstyle=INFO, command=self.pesquisar_equipamento).pack(side=LEFT, padx=5)
         tb.Button(frame_pesquisa, text="Limpar", bootstyle=SECONDARY, command=self.carregar_dados).pack(side=LEFT, padx=5)
 
+        # Treeview
         colunas = ("ID", "Nome", "Tipo", "Número de Série", "Setor", "Status", "Fabricante", "Data de Aquisição")
         self.tree = tb.Treeview(self.frame, columns=colunas, show="headings", bootstyle=INFO)
         for col in colunas:
@@ -92,17 +99,19 @@ class AbaEquipamento:
             self.tree.column(col, width=120, anchor="center")
         self.tree.grid(row=9, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
+        # Cores alternadas
         self.tree.tag_configure('par', background='#f2f2f2')
         self.tree.tag_configure('impar', background='white')
 
+        # Permitir que o frame cresça
         self.frame.columnconfigure(1, weight=1)
         self.frame.rowconfigure(9, weight=1)
 
+        # Frame de botões abaixo da tabela
         frame_botoes = tb.Frame(self.frame)
         frame_botoes.grid(row=10, column=0, columnspan=2, pady=10)
-
-        tb.Button(frame_botoes, text="Editar Equipamento", bootstyle=WARNING, command=self.editar_equipamento).pack(side=LEFT, padx=5)
-        tb.Button(frame_botoes, text="Excluir Equipamento", bootstyle=DANGER, command=self.excluir_equipamento).pack(side=LEFT, padx=5)
+        tb.Button(frame_botoes, text="Editar", bootstyle=WARNING, command=self.editar_equipamento).pack(side=LEFT, padx=5)
+        tb.Button(frame_botoes, text="Excluir", bootstyle=DANGER, command=self.excluir_equipamento).pack(side=LEFT, padx=5)
 
     def pesquisar_equipamento(self):
         termo = self.entry_pesquisa.get().strip().lower()
@@ -173,7 +182,6 @@ class AbaEquipamento:
         self.btn_salvar.config(text="Atualizar Equipamento", bootstyle=WARNING)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
-
     def excluir_equipamento(self):
         if not self._verificar_permissao():
             return
@@ -200,7 +208,6 @@ class AbaEquipamento:
             return
         
         data_aquisicao = self.entries["Data de Aquisição"].get_date()
-
         nome_setor_selecionado = self.entries["Setor"].get()
         setor_obj = next((s for s in self.setores if s.nome == nome_setor_selecionado), None)
 
@@ -209,12 +216,11 @@ class AbaEquipamento:
             nome=self.entries["Nome"].get(),
             tipo=self.entries["Tipo"].get(),
             numero_serie=self.entries["Número de Série"].get(),
-            setor=setor_obj,  # passa o objeto Setor
+            setor=setor_obj,
             status=self.entries["Status"].get(),
             fabricante=self.entries["Fabricante"].get(),
             data_aquisicao=data_aquisicao
         )
-
 
         if not (equipamento.nome and equipamento.tipo and equipamento.status):
             messagebox.showwarning("Atenção", "Preencha os campos obrigatórios: Nome, Tipo e Status.")
@@ -252,7 +258,7 @@ class AbaEquipamento:
         self.btn_cancelar.pack_forget()
 
     def _atualizar_setores(self):
-        self.setores = setor_dao.listar_setores()  # retorna lista de objetos Setor
+        self.setores = setor_dao.listar_setores()
         nomes_setores = [s.nome for s in self.setores]
 
         combo_setor = self.entries.get("Setor")
@@ -260,5 +266,4 @@ class AbaEquipamento:
             combo_setor['values'] = nomes_setores
             if nomes_setores:
                 combo_setor.set(nomes_setores[0])
-
 
