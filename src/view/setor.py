@@ -46,11 +46,12 @@ class AbaSetor:
         combo = self.entries.get("Responsável")
         if combo:
             usuarios = usuario_dao.listar_usuarios()
-            nomes_usuarios = ["Nenhum"] + [u.nome for u in usuarios]
-            nomes_usuarios = [u.nome for u in usuarios]
-            combo['values'] = nomes_usuarios
+            nomes_usuarios = [u.nome for u in usuarios if u.status == "Ativo"]
+            combo["values"] = nomes_usuarios
             if nomes_usuarios:
-                combo.set("Nenhum")
+                combo.set(nomes_usuarios[0])
+
+
 
     # ----------------- Botões de ações do formulário -----------------
     def _montar_botoes_acoes(self):
@@ -144,6 +145,11 @@ class AbaSetor:
         else:
             setor_dao.inserir_setor(nome, responsavel)
             messagebox.showinfo("Sucesso", "Setor criado!")
+
+        responsavel_nome = self.entries["Responsável"].get().strip()
+        if not responsavel_nome:
+            messagebox.showwarning("Atenção", "Selecione um responsável para o setor.")
+            return
 
         # Limpa formulário e atualiza tabela
         self.setor_em_edicao["id"] = None

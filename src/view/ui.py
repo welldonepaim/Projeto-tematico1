@@ -74,10 +74,12 @@ class App:
             self.aba_equipamento.carregar_dados()
 
         elif tab_text == "Manutenções":
-            self.aba_manutencao._atualizar_equipamentos()  # método que você precisa criar
-            self.aba_manutencao._atualizar_usuarios()      # idem
+            self.aba_manutencao._atualizar_equipamentos()
+            self.aba_manutencao._atualizar_usuarios()
             self.aba_manutencao.carregar_dados()
 
+        elif tab_text == "Setores":
+            self.aba_setor.carregar_dados()
 
     def abrir_login(self):
         self.login_janela = tb.Toplevel(self.app)

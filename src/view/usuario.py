@@ -32,7 +32,7 @@ class AbaUsuario:
         return True
 
     def _montar_formulario(self):
-        labels = ["Nome", "Login (E-mail)", "Senha", "Perfil", "Contato", "Status"]
+        labels = ["Nome", "Login (E-mail)", "Senha", "Contato", "Perfil", "Status"]
 
         for i, label in enumerate(labels):
             tb.Label(self.frame, text=label + ":", anchor="w").grid(row=i, column=0, padx=5, pady=5, sticky="w")

@@ -35,7 +35,7 @@ class AbaEquipamento:
         return True
 
     def _montar_formulario(self):
-            labels = ["Nome", "Tipo", "Número de Série", "Setor", "Status", "Fabricante", "Data de Aquisição"]
+            labels = ["Nome", "Tipo", "Número de Série", "Fabricante", "Setor", "Status", "Data de Aquisição"]
 
             for i, label in enumerate(labels):
                 # Label alinhada à direita, próxima do campo
@@ -44,7 +44,7 @@ class AbaEquipamento:
                 )
 
                 if label == "Status":
-                    combo = tb.Combobox(self.frame, values=["Disponível", "Indisponível"], width=25)
+                    combo = tb.Combobox(self.frame, values=["Disponível", "Indisponível"], state="readonly", width=25)
                     combo.set("Disponível")
                     combo.grid(row=i, column=1, padx=5, pady=2, sticky="we")
                     self.entries[label] = combo
@@ -225,6 +225,12 @@ class AbaEquipamento:
         if not (equipamento.nome and equipamento.tipo and equipamento.status):
             messagebox.showwarning("Atenção", "Preencha os campos obrigatórios: Nome, Tipo e Status.")
             return
+        
+        setor_nome = self.entries["Setor"].get().strip()
+        if not setor_nome:
+            messagebox.showwarning("Atenção", "Selecione um setor para o equipamento.")
+            return
+
 
         try:
             if equipamento.id:
@@ -258,12 +264,15 @@ class AbaEquipamento:
         self.btn_cancelar.pack_forget()
 
     def _atualizar_setores(self):
+        """Atualiza o combobox de setores com todos os setores cadastrados."""
         self.setores = setor_dao.listar_setores()
-        nomes_setores = [s.nome for s in self.setores]
+        nomes_setores = [s.nome for s in self.setores if getattr(s, "status", "Ativo") == "Ativo"]
 
         combo_setor = self.entries.get("Setor")
         if combo_setor:
-            combo_setor['values'] = nomes_setores
+            combo_setor["values"] = nomes_setores
+            # Define o primeiro setor da lista como padrão, se houver
             if nomes_setores:
                 combo_setor.set(nomes_setores[0])
+
 

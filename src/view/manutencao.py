@@ -84,7 +84,7 @@ class AbaManutencao:
                 combo = tb.Combobox(self.inner_frame, values=[
                      "Programada","Pendente","Em Análise", "Em Manutenção",
                     "Concluída", "Revisada", "Disponível", "Descontinuado"
-                ])
+                ], state="readonly")
                 combo.set("Programada")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
