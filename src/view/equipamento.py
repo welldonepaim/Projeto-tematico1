@@ -140,9 +140,25 @@ class AbaEquipamento:
         equipamentos = equipamento_dao.listar_equipamentos()
         for i, eq in enumerate(equipamentos):
             tag = 'par' if i % 2 == 0 else 'impar'
+
+            # Se eq.setor for um objeto, pega o nome; se for um ID, busca o nome correspondente
+            if hasattr(eq.setor, "nome"):
+                nome_setor = eq.setor.nome
+            else:
+                setor_obj = next((s for s in self.setores if s.id == eq.setor), None)
+                nome_setor = setor_obj.nome if setor_obj else "Desconhecido"
+
             self.tree.insert("", "end", values=(
-                eq.id, eq.nome, eq.tipo, eq.numero_serie, eq.setor, eq.status, eq.fabricante, eq.data_aquisicao
+                eq.id,
+                eq.nome,
+                eq.tipo,
+                eq.numero_serie,
+                nome_setor,
+                eq.status,
+                eq.fabricante,
+                eq.data_aquisicao
             ), tags=(tag,))
+
 
     def editar_equipamento(self):
         if not self._verificar_permissao():
