@@ -1,11 +1,12 @@
 # src/dao/planejamento_dao.py
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from src.dao.db import get_connection
-from src.view.planejamento import Planejamento
+from src.model.planejamento import Planejamento
 from src.model.usuario import Usuario
 from src.model.equipamento import Equipamento
+from src.dao import manutencao_dao
 
 def criar_tabela_planejamento():
     conn = get_connection()
@@ -18,6 +19,7 @@ def criar_tabela_planejamento():
             frequencia TEXT NOT NULL,
             dias_previstos INTEGER NOT NULL,
             data_inicial DATE NOT NULL,
+            last_gerada DATE,
             criticidade TEXT,
             responsavel_id INTEGER,
             equipamento_id INTEGER,
@@ -34,14 +36,15 @@ def inserir_planejamento(planejamento: Planejamento) -> int:
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO planejamentos
-        (tipo, descricao, frequencia, dias_previstos, data_inicial, criticidade, responsavel_id, equipamento_id, estagio)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (tipo, descricao, frequencia, dias_previstos, data_inicial, last_gerada, criticidade, responsavel_id, equipamento_id, estagio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         planejamento.tipo,
         planejamento.descricao,
         planejamento.frequencia,
         planejamento.dias_previstos,
         planejamento.data_inicial,
+        planejamento.last_gerada,
         planejamento.criticidade,
         planejamento.responsavel.id if planejamento.responsavel else None,
         planejamento.equipamento.id if planejamento.equipamento else None,
@@ -56,10 +59,9 @@ def listar_planejamentos() -> List[Planejamento]:
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT p.id, p.tipo, p.descricao, p.frequencia, p.dias_previstos, p.data_inicial,
-               p.criticidade,
-               u.id, u.nome, u.login, u.senha, u.perfil, u.contato, u.status,
-               e.id, e.nome, e.tipo, e.numero_serie, e.setor, e.status, e.fabricante, e.data_aquisicao
+     SELECT p.id, p.tipo, p.descricao, p.frequencia, p.dias_previstos, p.data_inicial, p.criticidade, p.last_gerada, p.estagio,
+         u.id, u.nome, u.login, u.senha, u.perfil, u.contato, u.status,
+         e.id, e.nome, e.tipo, e.numero_serie, e.setor_id, e.status, e.fabricante, e.data_aquisicao
         FROM planejamentos p
         LEFT JOIN usuarios u ON p.responsavel_id = u.id
         LEFT JOIN equipamentos e ON p.equipamento_id = e.id
@@ -68,14 +70,23 @@ def listar_planejamentos() -> List[Planejamento]:
     planejamentos = []
     for row in rows:
         responsavel = Usuario(
-            id=row[7], nome=row[8], login=row[9], senha=row[10],
-            perfil=row[11], contato=row[12], status=row[13]
-        ) if row[7] else None
+            id=row[9], nome=row[10], login=row[11], senha=row[12],
+            perfil=row[13], contato=row[14], status=row[15]
+        ) if row[9] else None
 
         equipamento = Equipamento(
-            id=row[14], nome=row[15], tipo=row[16], numero_serie=row[17],
-            setor=row[18], status=row[19], fabricante=row[20], data_aquisicao=row[21]
-        ) if row[14] else None
+            id=row[16], nome=row[17], tipo=row[18], numero_serie=row[19],
+            setor=row[20], status=row[21], fabricante=row[22], data_aquisicao=row[23]
+        ) if row[16] else None
+
+        # índices: 0..8 -> planejamento, 9..15 -> usuario, 16..23 -> equipamento
+        last_gerada = row[7]
+        # converter string de data para date se necessário
+        if isinstance(last_gerada, str):
+            try:
+                last_gerada = datetime.strptime(last_gerada.split('T')[0], "%Y-%m-%d").date()
+            except Exception:
+                last_gerada = None
 
         planejamento = Planejamento(
             id=row[0],
@@ -85,9 +96,10 @@ def listar_planejamentos() -> List[Planejamento]:
             dias_previstos=row[4],
             data_inicial=row[5],
             criticidade=row[6],
+            last_gerada=last_gerada,
             responsavel=responsavel,
             equipamento=equipamento,
-            estagio=row[22] if len(row) > 22 else None
+            estagio=row[8] if len(row) > 8 else None
         )
         planejamentos.append(planejamento)
     conn.close()
@@ -99,7 +111,7 @@ def atualizar_planejamento(planejamento: Planejamento) -> None:
     cur.execute("""
         UPDATE planejamentos SET
             tipo=?, descricao=?, frequencia=?, dias_previstos=?, data_inicial=?, criticidade=?, 
-            responsavel_id=?, equipamento_id=?, estagio=?
+            last_gerada=?, responsavel_id=?, equipamento_id=?, estagio=?
         WHERE id=?
     """, (
         planejamento.tipo,
@@ -108,6 +120,7 @@ def atualizar_planejamento(planejamento: Planejamento) -> None:
         planejamento.dias_previstos,
         planejamento.data_inicial,
         planejamento.criticidade,
+        planejamento.last_gerada,
         planejamento.responsavel.id if planejamento.responsavel else None,
         planejamento.equipamento.id if planejamento.equipamento else None,
         planejamento.estagio,
@@ -122,3 +135,53 @@ def excluir_planejamento(planejamento_id: int) -> None:
     cur.execute("DELETE FROM planejamentos WHERE id=?", (planejamento_id,))
     conn.commit()
     conn.close()
+
+
+def gerar_manutencoes_automaticas():
+    """Verifica planejamentos ativos e gera manutenções quando a data prevista for alcançada.
+    A função atualiza o campo last_gerada para avançar o próximo agendamento.
+    """
+    planejamentos = listar_planejamentos()
+    hoje = date.today()
+    for p in planejamentos:
+        # precisa ter configuração mínima
+        if not p.data_inicial:
+            continue
+
+        # verifica usando a lógica do próprio modelo
+        try:
+            if not p.deve_gerar(hoje):
+                continue
+        except Exception:
+            continue
+
+        proxima = p.proxima_data()
+        if not proxima:
+            continue
+
+        # cria uma manutenção com data prevista como hoje (indicando que foi gerada hoje)
+        manutencao = manutencao_dao.Manutencao(
+            id=None,
+            tipo=p.tipo,
+            equipamento=p.equipamento,
+            responsavel=p.responsavel,
+            data_prevista=hoje,
+            documento=None,
+            acoes_realizadas=None,
+            observacoes=(p.descricao or "") + f" (Gerada automaticamente a partir do planejamento; data original: {proxima})",
+            prioridade=p.criticidade,
+            status='Programada'
+        )
+        try:
+            manutencao_dao.inserir_manutencao(manutencao)
+        except Exception:
+            # não conseguir inserir a manutenção, passar para o próximo planejamento
+            continue
+
+        # avançar last_gerada através do próprio objeto Planejamento e persistir
+        try:
+            p.avançar_last_gerada()
+            atualizar_planejamento(p)
+        except Exception:
+            # ignore falhas de atualização e continue
+            pass

@@ -12,10 +12,12 @@ def inicializar_banco():
     from src.dao.setor_dao import criar_tabela_setores
     from src.dao.equipamento_dao import criar_tabela_equipamento
     from src.dao.manutencao_dao import criar_tabela_manutencao
+    from src.dao.planejamento_dao import criar_tabela_planejamento
 
     criar_tabela_usuario()
     criar_tabela_setores()
     criar_tabela_equipamento()
+    criar_tabela_planejamento()
     criar_tabela_manutencao()
 
     # garante usuário admin

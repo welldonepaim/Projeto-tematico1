@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import date
 from src.model.usuario import Usuario
 from src.model.equipamento import Equipamento
+from src.model.planejamento import Planejamento
 
 
 @dataclass
@@ -18,6 +19,7 @@ class Manutencao:
     observacoes: Optional[str] = None  # Observações adicionais
     prioridade: Optional[str] = None  # nova prioridade
     status: str = "Pendente"  # Status inicial padrão
+    planejamento: Optional[Planejamento] = None  # Planejamento associado (se for preventiva programada)
 
     TIPOS = ("Preventiva", "Corretiva", "Preditiva")
     STATUS = (
