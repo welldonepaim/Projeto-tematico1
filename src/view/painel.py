@@ -83,8 +83,7 @@ class AbaPainel:
         self._montar_graficos()
         self._montar_os_mes()
 
-        # Atualiza periodicamente (opcional)
-        self.frame.after(120000, self.refresh)
+       
 
     def refresh(self):
         try:
