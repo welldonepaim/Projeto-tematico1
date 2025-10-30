@@ -10,6 +10,7 @@ from src.view.usuario import AbaUsuario
 from src.view.setor import AbaSetor
 from src.view.equipamento import AbaEquipamento
 from src.view.manutencao import AbaManutencao
+from src.view.planejamento import AbaPlanejamento
 from src.dao.usuario_dao import verificar_login
 from src.model import session
 
@@ -60,10 +61,7 @@ class App:
         self.aba_setor = AbaSetor(self.notebook)
         self.aba_equipamento = AbaEquipamento(self.notebook)
         self.aba_manutencao = AbaManutencao(self.notebook)
-     
-
-        # Conecta evento de mudança de aba
-        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.aba_planejamento = AbaPlanejamento(self.notebook)
 
     def _on_tab_changed(self, event):
         tab_id = event.widget.select()
