@@ -135,12 +135,29 @@ class AbaPainel:
         # Grafico 1: Distribuição equipamentos (pie)
         equipamentos = equipamento_dao.listar_equipamentos()
         total_equipamentos = len(equipamentos)
-        equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
-        equipamentos_manut = total_equipamentos - equipamentos_disponiveis
-        fig1, ax1 = plt.subplots(figsize=(3,4))
-        ax1.pie([equipamentos_disponiveis, equipamentos_manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%", colors=["#2ecc71", "#e74c3c"])
-        ax1.set_title("Equipamentos")
-        FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+        if total_equipamentos == 0:
+            # Cria um gráfico de pizza "vazio" ou exibe uma mensagem
+            fig1, ax1 = plt.subplots(figsize=(3,4))
+            ax1.set_title("Equipamentos")
+            ax1.text(0.5, 0.5, 'Sem dados de equipamentos', 
+            horizontalalignment='center', 
+            verticalalignment='center', 
+            transform=ax1.transAxes)
+            ax1.axis('off') # Esconde eixos desnecessários
+            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+        else:
+            equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
+            equipamentos_manut = total_equipamentos - equipamentos_disponiveis
+            fig1, ax1 = plt.subplots(figsize=(3,4))
+            ax1.pie([equipamentos_disponiveis, equipamentos_manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%", colors=["#2ecc71", "#e74c3c"])
+            ax1.set_title("Equipamentos")
+            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+            equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
+            equipamentos_manut = total_equipamentos - equipamentos_disponiveis
+            fig1, ax1 = plt.subplots(figsize=(3,4))
+            ax1.pie([equipamentos_disponiveis, equipamentos_manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%", colors=["#2ecc71", "#e74c3c"])
+            ax1.set_title("Equipamentos")
+            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
 
         # Grafico 2: Ordens por status (bar)
         manutencoes = manutencao_dao.listar_manutencoes()
