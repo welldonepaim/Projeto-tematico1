@@ -22,14 +22,22 @@ class RestartHandler(FileSystemEventHandler):
             self.start_app()
 
 if __name__ == "__main__":
-    script = "app.py"  # seu arquivo principal
-    path = os.path.dirname(os.path.abspath(script))
+    script_name = "app.py" 
     
-    event_handler = RestartHandler(script)
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    script_path = os.path.join(base_dir, script_name)
+    
+    path_to_watch = base_dir 
+    
+    
+    event_handler = RestartHandler(script_path) 
+    
     observer = Observer()
-    observer.schedule(event_handler, path=path, recursive=True)
+    
+    observer.schedule(event_handler, path=path_to_watch, recursive=True)
     observer.start()
-
     try:
         while True:
             time.sleep(1)
