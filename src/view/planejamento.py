@@ -39,9 +39,8 @@ class AbaPlanejamento:
         frame_actions = tb.Frame(self.frame)
         frame_actions.pack(fill="x", pady=5)
         tb.Button(frame_actions, text="Gerar agora (selecionado)", bootstyle="primary", command=self.gerar_agora).pack(side=LEFT, padx=5)
-        tb.Button(frame_actions, text="Editar", bootstyle="warning", command=self.editar).pack(side=LEFT, padx=5)
         tb.Button(frame_actions, text="Excluir", bootstyle="danger", command=self.excluir).pack(side=LEFT, padx=5)
-        tb.Button(frame_actions, text="Atualizar lista", bootstyle="secondary", command=self.carregar_planejamentos).pack(side=LEFT, padx=5)
+        
 
         # Tabela de planejamentos
         colunas = ("ID", "Tipo", "Equipamento", "Frequencia", "Dias", "Data Inicial", "Proxima", "Criticidade", "Estagio")
@@ -50,10 +49,12 @@ class AbaPlanejamento:
             self.tree.heading(c, text=c)
             self.tree.column(c, width=120, anchor="center")
         self.tree.pack(fill="both", expand=True, pady=5)
-
-        self.carregar_planejamentos()
+        
+                
+        
 
     def carregar_planejamentos(self):
+    
         for item in self.tree.get_children():
             self.tree.delete(item)
 
@@ -128,7 +129,9 @@ class AbaPlanejamento:
                 pass
 
             messagebox.showinfo("Gerado", f"Manutenção gerada com ID {mid} a partir do planejamento {p.id}.")
-            self.carregar_planejamentos()
+          
+            
+
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao gerar manutenção: {e}")
 
@@ -138,7 +141,7 @@ class AbaPlanejamento:
         except Exception as e:
             messagebox.showwarning("Atenção", str(e))
             return
-
+       
         self._abrir_editor(p)
 
     def excluir(self):
@@ -157,45 +160,7 @@ class AbaPlanejamento:
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao excluir planejamento: {e}")
 
-    def _abrir_editor(self, planejamento: Planejamento):
-        win = tb.Toplevel(self.frame)
-        win.title(f"Editar Planejamento #{planejamento.id}")
-        win.geometry("520x360")
-
-        # campos básicos: descricao, frequencia, dias_previstos, data_inicial, criticidade, estagio
-        tb.Label(win, text="Descrição:").pack(anchor="w", padx=8, pady=(8,0))
-        ent_desc = tb.Entry(win)
-        ent_desc.pack(fill="x", padx=8)
-        ent_desc.insert(0, planejamento.descricao or "")
-
-        tb.Label(win, text="Frequência:").pack(anchor="w", padx=8, pady=(8,0))
-        combo_freq = tb.Combobox(win, values=list(Planejamento.FREQUENCIAS), state="readonly")
-        combo_freq.pack(fill="x", padx=8)
-        if planejamento.frequencia:
-            combo_freq.set(planejamento.frequencia)
-
-        tb.Label(win, text="Dias previstos:").pack(anchor="w", padx=8, pady=(8,0))
-        ent_dias = tb.Entry(win)
-        ent_dias.pack(fill="x", padx=8)
-        ent_dias.insert(0, str(planejamento.dias_previstos) if planejamento.dias_previstos else "")
-
-        tb.Label(win, text="Data inicial (DD/MM/YYYY):").pack(anchor="w", padx=8, pady=(8,0))
-        ent_data = tb.Entry(win)
-        ent_data.pack(fill="x", padx=8)
-        if planejamento.data_inicial:
-            ent_data.insert(0, _format_date(planejamento.data_inicial))
-
-        tb.Label(win, text="Criticidade:").pack(anchor="w", padx=8, pady=(8,0))
-        combo_crit = tb.Combobox(win, values=["Urgente", "Alta", "Média", "Baixa", "Sem Prioridade"], state="readonly")
-        combo_crit.pack(fill="x", padx=8)
-        if planejamento.criticidade:
-            combo_crit.set(planejamento.criticidade)
-
-        tb.Label(win, text="Estágio:").pack(anchor="w", padx=8, pady=(8,0))
-        ent_estagio = tb.Entry(win)
-        ent_estagio.pack(fill="x", padx=8)
-        ent_estagio.insert(0, planejamento.estagio or "")
-
+    
         def _salvar():
             try:
                 planejamento.descricao = ent_desc.get().strip()
@@ -209,10 +174,14 @@ class AbaPlanejamento:
                 planejamento.estagio = ent_estagio.get().strip() or None
 
                 planejamento_dao.atualizar_planejamento(planejamento)
+                self.gerar_os_de_planejamentos_atrasados()
+                self.carregar_os_mes()
+                self.carregar_planejamentos()
+
                 messagebox.showinfo("Salvo", "Planejamento atualizado com sucesso.")
                 win.destroy()
                 self.carregar_planejamentos()
             except Exception as e:
                 messagebox.showerror("Erro", f"Falha ao salvar planejamento: {e}")
 
-        tb.Button(win, text="Salvar", bootstyle="success", command=_salvar).pack(pady=10)
+        

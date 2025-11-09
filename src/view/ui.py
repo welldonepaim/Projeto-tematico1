@@ -62,7 +62,6 @@ class App:
         self.aba_equipamento = AbaEquipamento(self.notebook)
         self.aba_manutencao = AbaManutencao(self.notebook)
         self.aba_planejamento = AbaPlanejamento(self.notebook)
-
     def _on_tab_changed(self, event):
         tab_id = event.widget.select()
         tab_text = event.widget.tab(tab_id, "text")
@@ -74,10 +73,15 @@ class App:
         elif tab_text == "Manutenções":
             self.aba_manutencao._atualizar_equipamentos()
             self.aba_manutencao._atualizar_usuarios()
+            self.aba_manutencao.gerar_os_do_dia()
             self.aba_manutencao.carregar_dados()
+            
+
 
         elif tab_text == "Setores":
             self.aba_setor.carregar_dados()
+        elif tab_text == "Planejamento":
+            self.aba_planejamento.carregar_planejamentos()
 
     def abrir_login(self):
         self.login_janela = tb.Toplevel(self.app)

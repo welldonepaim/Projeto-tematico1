@@ -67,7 +67,6 @@ class AbaPainel:
         header = tb.Frame(self.frame)
         header.pack(fill="x", pady=(0, 8))
         tb.Label(header, text="Painel de Controle", font=("Segoe UI", 18, "bold")).pack(side=LEFT)
-        tb.Button(header, text="Atualizar", bootstyle=INFO, command=self.refresh).pack(side=RIGHT)
         tb.Button(header, text="Relatório por Setor (PDF)", bootstyle=PRIMARY, command=self.gerar_relatorio_pdf).pack(side=RIGHT, padx=6)
 
         # KPI cards
@@ -87,17 +86,19 @@ class AbaPainel:
 
     def refresh(self):
         try:
-            # atualiza apenas o conteúdo dinâmico
+            # destrói widgets antigos
             for widget in list(self.kpi_frame.winfo_children()):
                 widget.destroy()
             for widget in list(self.content_frame.winfo_children()):
                 widget.destroy()
 
+            # recria o conteúdo
             self._montar_kpis()
             self._montar_graficos()
             self._montar_os_mes()
         except Exception as e:
             print("Erro ao atualizar painel:", e)
+
 
     def _kpi_card(self, parent, title, value, subtitle="", color=PRIMARY):
         card = tb.Frame(parent, padding=10, bootstyle="light")
@@ -356,13 +357,26 @@ class AbaPainel:
             messagebox.showerror("Erro", f"Falha ao gerar relatório: {e}")
 
     def carregar_os_mes(self):
+        
         for item in self.tree_os.get_children():
             self.tree_os.delete(item)
 
         hoje = datetime.today().date()
         manutencoes = manutencao_dao.listar_manutencoes()
 
-        os_mes = [m for m in manutencoes if m.data_prevista and m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year and (m.tipo or "").lower()=="preventiva"]
+        # filtra apenas preventivas do mês atual
+        os_mes = [
+    m for m in manutencoes 
+    if m.data_prevista
+    and m.data_prevista.month == hoje.month
+    and m.data_prevista.year == hoje.year
+    and (m.tipo or "").lower() == "preventiva"
+    and ((m.status or "").lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')) != "concluida"
+]       
+        
+
+        # salva a lista como variável de instância
+        self.os_filtradas_mes = os_mes
 
         for i, m in enumerate(os_mes):
             eq = m.equipamento.nome if m.equipamento else "N/A"
@@ -376,5 +390,3 @@ class AbaPainel:
                 tag = 'par' if i % 2 == 0 else 'impar'
 
             self.tree_os.insert("", "end", values=(m.id, m.tipo, eq, resp, data, prioridade, m.status), tags=(tag,))
-
-

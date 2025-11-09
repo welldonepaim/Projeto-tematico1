@@ -5,12 +5,13 @@ from tkinter import messagebox, LEFT
 from src.model.manutencao import Manutencao
 from src.dao import manutencao_dao, usuario_dao, equipamento_dao, planejamento_dao
 from src.model.planejamento import Planejamento
-from datetime import date, datetime
+from datetime import date, datetime,timedelta
 
 
 class AbaManutencao:
-    def __init__(self, notebook):
-    
+    def __init__(self, notebook,aba_planejamento=None):
+        self.aba_planejamento = aba_planejamento
+
         self.frame = tb.Frame(notebook, padding=10)
         notebook.add(self.frame, text="Manutenções")
 
@@ -81,9 +82,10 @@ class AbaManutencao:
 
             elif label == "Data Prevista":
                 entry = tb.DateEntry(self.inner_frame, dateformat="%d/%m/%Y", bootstyle=INFO)
-                entry.set_date(datetime.today().date())
+                entry.set_date(datetime.today().date())  # sempre inicia com hoje
                 entry.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = entry
+
 
             elif label in ("Documento", "Ações Realizadas", "Observações"):
                 entry = tb.Entry(self.inner_frame)
@@ -134,7 +136,7 @@ class AbaManutencao:
         self.entry_pesquisa.pack(side=LEFT, fill="x", expand=True, padx=5)
         tb.Button(frame_pesquisa, text="Buscar", bootstyle=INFO, command=self.pesquisar_manutencao).pack(side=LEFT, padx=5)
         tb.Button(frame_pesquisa, text="Limpar", bootstyle=SECONDARY, command=self.carregar_dados).pack(side=LEFT, padx=5)
-        tb.Button(frame_pesquisa, text="Gerar agendadas", bootstyle=INFO, command=self._gerar_manutencoes_agendadas).pack(side=LEFT, padx=5)
+        
 
         # Treeview
         colunas = ("ID", "Tipo", "Equipamento", "Responsável", "Data Prevista", "Prioridade", "Status")
@@ -154,24 +156,27 @@ class AbaManutencao:
         tb.Button(frame_botoes_tree, text="Excluir", bootstyle=DANGER, command=self.excluir).pack(side=LEFT, padx=5)
 
     def carregar_dados(self):
+       
         for item in self.tree.get_children():
             self.tree.delete(item)
-        manutencoes = manutencao_dao.listar_manutencoes()
+        self.lista_os= manutencao_dao.listar_manutencoes()
+        
         hoje = datetime.today().date()
-        # Não mostrar manutenções programadas futuras que vieram do planejamento.
-        # Critério: tipo == Preventiva and status == 'Programada' and data_prevista > hoje -> esconder
         exibiveis = []
-        for m in manutencoes:
+        
+        for m in self.lista_os:
             try:
                 is_future_planned = (
-                    (m.tipo == 'Preventiva' or (m.tipo and m.tipo.lower() == 'preventiva'))
-                    and (m.status == 'Programada' or (m.status and m.status.lower() == 'programada'))
-                    and m.data_prevista is not None
-                    and m.data_prevista > hoje
+                    (m.tipo == 'Preventiva' or (m.tipo and m.tipo.lower() == 'preventiva')) and
+                    (m.status == 'Programada' or (m.status and m.status.lower() == 'programada')) and
+                    m.data_prevista is not None and
+                    m.data_prevista > hoje
                 )
             except Exception:
                 is_future_planned = False
-            if not is_future_planned:
+            
+            # Filtra manutenções concluídas e futuras preventivas programadas
+            if not is_future_planned and (m.status != 'Concluída' and (m.status or "").lower() != 'concluída'):
                 exibiveis.append(m)
 
         for i, m in enumerate(exibiveis):
@@ -180,6 +185,7 @@ class AbaManutencao:
             resp = m.responsavel.nome if m.responsavel else "N/A"
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
+
 
     def pesquisar_manutencao(self):
         termo = self.entry_pesquisa.get().strip().lower()
@@ -209,20 +215,9 @@ class AbaManutencao:
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
             
-    def _gerar_manutencoes_agendadas(self):
-        # Botão provisório: não deve gerar ordens de serviço.
-        # Apenas informa quantos planejamentos existem e atualiza a lista local.
-        try:
-            planejamentos = planejamento_dao.listar_planejamentos()
-            count = len(planejamentos)
-            self.carregar_dados()
-            message = f"Existem {count} planejamento(s) cadastrados. Nenhuma ordem foi gerada (modo de teste)."
-            messagebox.showinfo("Planejamentos", message)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Falha ao listar planejamentos: {e}")
-            
-############# Carregar dados
+    
     def editar(self):
+       
         selecionado = self.tree.selection()
         if not selecionado:
             messagebox.showwarning("Atenção", "Selecione uma manutenção para editar.")
@@ -255,6 +250,7 @@ class AbaManutencao:
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
     def salvar(self):
+               
         try:
             tipo = self.entries["Tipo"].get()
             equipamento_str = self.entries["Equipamento"].get()
@@ -272,7 +268,7 @@ class AbaManutencao:
                 messagebox.showwarning("Atenção", "Preencha todos os campos obrigatórios.")
                 return
 
-            # Condição específica para Preventiva e Programada
+            # Preventiva Programada exige periodicidade
             if tipo == "Preventiva" and status == "Programada" and not periodicidade:
                 messagebox.showwarning("Atenção", "Para manutenções Preventivas e Programadas, o campo Periodicidade é obrigatório.")
                 return
@@ -282,9 +278,9 @@ class AbaManutencao:
 
             equipamento = equipamento_dao.buscar_equipamento_por_id(equipamento_id)
             responsavel = usuario_dao.buscar_usuario_por_id(responsavel_id)
-            # Se for Preventiva Programada: criamos um Planejamento e também a primeira Manutenção agendada
+
             if tipo == "Preventiva" and status == "Programada":
-                # mapeia periodicidade para dias
+                # Mapear periodicidade para dias
                 freq_map = {
                     "Diario": 1,
                     "Semanal": 7,
@@ -311,16 +307,21 @@ class AbaManutencao:
                     estagio="Ativo",
                     last_gerada=None,
                 )
+
                 try:
-                    planejamento_id = planejamento_dao.inserir_planejamento(planejamento)
+                    planejamento_dao.inserir_planejamento(planejamento)
                 except Exception as e:
                     messagebox.showerror("Erro", f"Não foi possível criar planejamento: {e}")
                     return
 
-                # NÃO criar a primeira manutenção agora — o planejamento deve ficar como registro separado
                 messagebox.showinfo("Sucesso", "Planejamento cadastrado com sucesso! A manutenção será gerada quando chegar a data prevista.")
+
+                # Atualiza a Treeview da aba de Planejamento automaticamente
+                if self.aba_planejamento:
+                    self.aba_planejamento.carregar_planejamentos()
+
             else:
-                # manutenção simples (Corretiva/Preditiva ou Preventiva não programada)
+                # Manutenção simples (Corretiva, Preditiva ou Preventiva não programada)
                 manutencao = Manutencao(
                     id=self.manutencao_em_edicao["id"],
                     tipo=tipo,
@@ -337,19 +338,33 @@ class AbaManutencao:
                 if manutencao.id:
                     manutencao_dao.atualizar_manutencao(manutencao)
                     messagebox.showinfo("Sucesso", "Manutenção atualizada com sucesso!")
+                    if status == "Concluída":
+                        manutencao.data_encerramento = date.today()
+                        planejamento = getattr(manutencao, "planejamento", None)
+                        if planejamento:
+                            hoje = date.today()
+                            planejamento.last_gerada = hoje
+                            planejamento.data_inicial = hoje + timedelta(days=planejamento.dias_previstos)
+                            planejamento_dao.atualizar_planejamento(planejamento)
+
                 else:
                     manutencao_dao.inserir_manutencao(manutencao)
                     messagebox.showinfo("Sucesso", "Manutenção cadastrada com sucesso!")
 
+            # Limpar formulário
             self.limpar_formulario()
+
+            # Atualizar combos e Treeview
+            self._atualizar_equipamentos()
+            self._atualizar_usuarios()
             self.carregar_dados()
 
         except Exception as e:
-          messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
-##############  Editar
-   
+            messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
+
     def excluir(self):
         selecionado = self.tree.selection()
+      
         if not selecionado:
             messagebox.showwarning("Atenção", "Selecione uma manutenção para excluir.")
             return
@@ -362,6 +377,8 @@ class AbaManutencao:
             try:
                 manutencao_dao.excluir_manutencao(manutencao_id)
                 self.carregar_dados()
+                if self.aba_planejamento:
+                 self.aba_planejamento.carregar_planejamentos()
                 messagebox.showinfo("Sucesso", "Manutenção excluída com sucesso!")
             except Exception as e:
                 messagebox.showerror("Erro", f"Não foi possível excluir: {e}")
@@ -396,3 +413,104 @@ class AbaManutencao:
             combo_resp['values'] = [f"{u.id} - {u.nome}" for u in self.usuarios]
             if self.usuarios:
                 combo_resp.set(f"{self.usuarios[0].id} - {self.usuarios[0].nome}")
+    def concluir_manutencao(self, manutencao_id):
+        manutencao = manutencao_dao.buscar_por_id(manutencao_id)
+        manutencao.status = "Concluída"
+        manutencao.data_encerramento = date.today()
+        manutencao_dao.atualizar(manutencao)
+
+        # Atualizar planejamento
+        planejamento = planejamento_dao.buscar_por_equipamento(manutencao.id_equipamento)
+        if planejamento:
+            hoje = date.today()
+            planejamento.data_ultima_execucao = hoje
+            planejamento.data_prevista = hoje + timedelta(days=planejamento.periodicidade)
+            planejamento_dao.atualizar(planejamento)
+
+        messagebox.showinfo("OK", "Manutenção concluída e próxima preventiva programada.")
+        self.carregar_dados()
+        if self.aba_planejamento:
+            self.aba_planejamento.carregar_planejamentos()
+    
+
+  
+
+    def gerar_os_do_dia(self):
+       
+        """
+        Gera as OS preventivas do dia a partir dos planejamentos ativos,
+        evitando duplicações.
+        """
+        planejamentos = planejamento_dao.listar_planejamentos()
+        hoje = date.today()
+
+        for p in planejamentos:
+            # Garantir que last_gerada e data_inicial sejam date
+            last_gerada = p.last_gerada
+            if isinstance(last_gerada, str):
+                last_gerada = datetime.strptime(last_gerada, "%Y-%m-%d").date()
+            
+            data_inicial = p.data_inicial
+            if isinstance(data_inicial, str):
+                data_inicial = datetime.strptime(data_inicial, "%Y-%m-%d").date()
+
+            proxima_data = last_gerada + timedelta(days=p.dias_previstos) if last_gerada else data_inicial
+
+            # Só gera OS se a data for hoje ou anterior
+            if proxima_data > hoje:
+                continue
+
+            # Evita criar OS duplicadas
+            if self.existe_os_aberta_no_banco(p.id, proxima_data):
+                continue
+
+            # Cria a OS preventiva
+            manutencao = Manutencao(
+                tipo="Preventiva",
+                equipamento=p.equipamento,
+                responsavel=p.responsavel,
+                data_prevista=proxima_data,
+                status="Programada",
+                observacoes=f"Preventiva automática (Periodicidade: {p.dias_previstos} dias)",
+                planejamento=p
+            )
+            manutencao_dao.inserir_manutencao(manutencao)
+
+            # Atualiza a última geração
+            p.last_gerada = proxima_data
+            planejamento_dao.atualizar_planejamento(p)
+
+
+
+    def existe_os_aberta_no_banco(self, id_planejamento: int, data_prevista: date) -> bool:
+            manuts = manutencao_dao.listar_manutencoes_por_planejamento(id_planejamento)
+            for m in manuts:
+                if m.status != "Concluída" and m.data_prevista == data_prevista:
+                    return True
+            return False
+
+
+    def concluir_manutencao(self, manutencao_id):
+        manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
+        manutencao.status = "Concluída"
+        manutencao.data_encerramento = date.today()
+        manutencao_dao.atualizar_manutencao(manutencao)
+
+        # Atualiza planejamento se existir
+        planejamento = getattr(manutencao, "planejamento", None)
+        if planejamento:
+            hoje = date.today()
+            planejamento.last_gerada = hoje  # registra a última execução
+            planejamento.data_inicial = hoje + timedelta(days=planejamento.dias_previstos)  # próxima prevista
+            planejamento_dao.atualizar_planejamento(planejamento)
+
+        # GERAR NOVAS OS AUTOMÁTICAMENTE
+        self.gerar_os_do_dia()  # <- isso vai criar a próxima preventiva
+
+        # Recarregar dados na TreeView
+        self.carregar_dados()
+        if self.aba_planejamento:
+            self.aba_planejamento.carregar_planejamentos()
+
+        messagebox.showinfo("OK", "Manutenção concluída e próxima preventiva programada.")
+

@@ -205,3 +205,52 @@ def excluir_manutencao(manutencao_id: int) -> None:
         cur = conn.cursor()
         cur.execute("DELETE FROM manutencoes WHERE id=?", (manutencao_id,))
 
+def listar_manutencoes_por_planejamento(id_planejamento: int) -> List[Manutencao]:
+    manutencoes = []
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT m.id, m.tipo, 
+                   e.id, e.nome, e.tipo, e.numero_serie, e.setor_id, e.status, e.fabricante, e.data_aquisicao,
+                   u.id, u.nome, u.login, u.senha, u.perfil, u.contato, u.status,
+                   m.data_prevista, m.documento, m.acoes_realizadas, m.observacoes, m.status, m.prioridade,
+                   m.planejamento_id
+            FROM manutencoes m
+            JOIN equipamentos e ON m.equipamento_id = e.id
+            JOIN usuarios u ON m.responsavel_id = u.id
+            WHERE m.planejamento_id = ?
+        """, (id_planejamento,))
+        rows = cur.fetchall()
+        for row in rows:
+            equipamento = Equipamento(
+                id=row[2], nome=row[3], tipo=row[4], numero_serie=row[5],
+                setor=row[6], status=row[7], fabricante=row[8], data_aquisicao=row[9]
+            )
+            usuario = Usuario(
+                id=row[10], nome=row[11], login=row[12], senha=row[13],
+                perfil=row[14], contato=row[15], status=row[16]
+            )
+            data_prevista = _parse_date(row[17])
+            planejamento_obj = None
+            planejamento_id = row[23] if len(row) > 23 else None
+            if planejamento_id:
+                from src.dao import planejamento_dao
+                try:
+                    planejamento_obj = planejamento_dao.buscar_planejamento_por_id(planejamento_id)
+                except Exception:
+                    planejamento_obj = None
+
+            manut = Manutencao(
+                id=row[0], tipo=row[1],
+                equipamento=equipamento,
+                responsavel=usuario,
+                data_prevista=data_prevista,
+                documento=row[18],
+                acoes_realizadas=row[19],
+                observacoes=row[20],
+                status=row[21],
+                prioridade=row[22],
+                planejamento=planejamento_obj
+            )
+            manutencoes.append(manut)
+    return manutencoes
