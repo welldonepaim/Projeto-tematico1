@@ -8,6 +8,7 @@ from src.dao import manutencao_dao, equipamento_dao, planejamento_dao
 from src.dao import setor_dao
 import os
 from tkinter import messagebox
+from src.utils.relatorio import RelatorioPDFUtil
 
 # tentativa de importar reportlab para gerar PDF; se não disponível, avisamos ao usuário
 try:
@@ -59,19 +60,51 @@ def _parse_date_obj(val):
 
 
 class AbaPainel:
+    def gerar_relatorio_pdf(self):
+        """Gera relatório PDF por setor usando utilitário ou exibe mensagem de erro se falhar."""
+        try:
+            if not REPORTLAB_AVAILABLE:
+                messagebox.showwarning("Dependência ausente", "A biblioteca 'reportlab' não está instalada. Instale com: pip install reportlab")
+                return
+            # Utilitário customizado (se existir)
+            if 'RelatorioPDFUtil' in globals():
+                RelatorioPDFUtil.gerar_relatorio_por_setor()
+            else:
+                # Fallback: apenas mensagem
+                messagebox.showinfo("Relatório", "Função de geração de relatório não implementada.")
+                return
+            
+        except Exception as e:
+            messagebox.showerror("Erro ao gerar relatório", str(e))
     def __init__(self, notebook):
         self.frame = tb.Frame(notebook, padding=12)
         notebook.add(self.frame, text="Painel")
 
-        # header
+        # header com logo e faixa colorida
         header = tb.Frame(self.frame)
         header.pack(fill="x", pady=(0, 8))
-        tb.Label(header, text="Painel de Controle", font=("Segoe UI", 18, "bold")).pack(side=LEFT)
-        tb.Button(header, text="Relatório por Setor (PDF)", bootstyle=PRIMARY, command=self.gerar_relatorio_pdf).pack(side=RIGHT, padx=6)
+        logo_path = os.path.join(os.getcwd(), 'image', 'favicon.png')
+        self.logo_img = None
+        try:
+            if os.path.exists(logo_path):
+                from PIL import Image, ImageTk
+                img = Image.open(logo_path)
+                img = img.resize((32, 32), Image.LANCZOS)
+                self.logo_img = ImageTk.PhotoImage(img)
+                tb.Label(header, image=self.logo_img).pack(side=LEFT, padx=(0, 8), pady=2)
+        except Exception:
+            self.logo_img = None
+        tb.Label(header, text="Painel de Controle", font=("Segoe UI", 18, "bold"), foreground="#222222").pack(side=LEFT, fill="y", padx=(0,10), pady=2)
+        tb.Button(header, text="Relatório por Setor (PDF)", bootstyle=PRIMARY, command=self.gerar_relatorio_pdf).pack(side=RIGHT, padx=6, pady=2)
+        # faixa colorida removida para fundo limpo
+
 
         # KPI cards
         self.kpi_frame = tb.Frame(self.frame)
         self.kpi_frame.pack(fill="x", pady=6)
+
+        # separador
+        tb.Frame(self.frame, height=2, style="secondary.TFrame").pack(fill="x", pady=(0, 8))
 
         # area de conteúdo (gráficos + tabela)
         self.content_frame = tb.Frame(self.frame)
@@ -101,10 +134,10 @@ class AbaPainel:
 
 
     def _kpi_card(self, parent, title, value, subtitle="", color=PRIMARY):
-        card = tb.Frame(parent, padding=10, bootstyle="light")
+        card = tb.Frame(parent, padding=10)
         card.pack(side=LEFT, expand=True, fill="x", padx=6)
         tb.Label(card, text=title, font=("Segoe UI", 10), foreground="#6c757d").pack(anchor="w")
-        tb.Label(card, text=str(value), font=("Segoe UI", 20, "bold"), foreground="#222222").pack(anchor="w")
+        tb.Label(card, text=str(value), font=("Segoe UI", 22, "bold"), foreground="#222222").pack(anchor="w", pady=(0,2))
         if subtitle:
             tb.Label(card, text=subtitle, font=("Segoe UI", 9), foreground="#6c757d").pack(anchor="w")
         return card
@@ -129,61 +162,88 @@ class AbaPainel:
         self._kpi_card(self.kpi_frame, "Ordens Atrasadas", ordens_atrasadas, "Requer atenção", color=DANGER)
         self._kpi_card(self.kpi_frame, "Planejamentos", len(planejamentos), "Agendados", color=SUCCESS)
 
+
     def _montar_graficos(self):
         frame_graficos = tb.Frame(self.content_frame)
         frame_graficos.pack(fill="both", expand=True, pady=10)
 
-        # Grafico 1: Distribuição equipamentos (pie)
+        # Gráfico 1: Distribuição equipamentos (pie)
         equipamentos = equipamento_dao.listar_equipamentos()
         total_equipamentos = len(equipamentos)
         if total_equipamentos == 0:
-            # Cria um gráfico de pizza "vazio" ou exibe uma mensagem
-            fig1, ax1 = plt.subplots(figsize=(3,4))
-            ax1.set_title("Equipamentos")
-            ax1.text(0.5, 0.5, 'Sem dados de equipamentos', 
-            horizontalalignment='center', 
-            verticalalignment='center', 
-            transform=ax1.transAxes)
-            ax1.axis('off') # Esconde eixos desnecessários
-            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+            fig1, ax1 = plt.subplots(figsize=(3.5, 3.5))
+            ax1.set_title("Equipamentos", fontsize=13)
+            ax1.text(0.5, 0.5, 'Sem dados de equipamentos',
+                     horizontalalignment='center',
+                     verticalalignment='center',
+                     transform=ax1.transAxes, fontsize=11)
+            ax1.axis('off')
+            fig1.tight_layout(pad=1.5)
+            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
         else:
             equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
             equipamentos_manut = total_equipamentos - equipamentos_disponiveis
-            fig1, ax1 = plt.subplots(figsize=(3,4))
-            ax1.pie([equipamentos_disponiveis, equipamentos_manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%", colors=["#2ecc71", "#e74c3c"])
-            ax1.set_title("Equipamentos")
-            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
-            equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
-            equipamentos_manut = total_equipamentos - equipamentos_disponiveis
-            fig1, ax1 = plt.subplots(figsize=(3,4))
-            ax1.pie([equipamentos_disponiveis, equipamentos_manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%", colors=["#2ecc71", "#e74c3c"])
-            ax1.set_title("Equipamentos")
-            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+            fig1, ax1 = plt.subplots(figsize=(3.5, 3.5))
+            wedges, texts, autotexts = ax1.pie(
+                [equipamentos_disponiveis, equipamentos_manut],
+                labels=["Disponíveis", "Em manutenção"],
+                autopct="%1.0f%%",
+                colors=["#2ecc71", "#e74c3c"],
+                wedgeprops={'edgecolor': '#34495e'},
+                textprops={'fontsize': 11}
+            )
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontsize(12)
+            for text in texts:
+                text.set_fontsize(11)
+            ax1.set_title("Equipamentos", fontsize=13)
+            fig1.tight_layout(pad=1.5)
+            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
-        # Grafico 2: Ordens por status (bar)
+        # Gráfico 2: Ordens por status (bar)
         manutencoes = manutencao_dao.listar_manutencoes()
-        status_counts = Counter([ (m.status or "").capitalize() for m in manutencoes ])
-        fig2, ax2 = plt.subplots(figsize=(4,4))
-        ax2.bar(status_counts.keys(), status_counts.values(), color=["#f39c12", "#3498db", "#2ecc71", "#95a5a6"]) 
-        ax2.set_title("Ordens por Status")
-        ax2.tick_params(axis='x', rotation=25)
-        FigureCanvasTkAgg(fig2, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+        status_counts = Counter([(m.status or "").capitalize() for m in manutencoes])
+        fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
+        bars = ax2.bar(status_counts.keys(), status_counts.values(), color=["#f39c12", "#3498db", "#2ecc71", "#95a5a6"])
+        ax2.set_title("Ordens por Status", fontsize=13)
+        ax2.tick_params(axis='x', rotation=25, labelsize=11)
+        ax2.tick_params(axis='y', labelsize=11)
+        for bar in bars:
+            bar.set_edgecolor('#34495e')
+        for label in ax2.get_xticklabels():
+            label.set_fontsize(11)
+        fig2.tight_layout(pad=1.5)
+        FigureCanvasTkAgg(fig2, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
-        # Grafico 3: Prioridade
+        # Gráfico 3: Prioridade
         prioridades = [m.prioridade if m.prioridade else "Sem Prioridade" for m in manutencoes]
         contagem = Counter(prioridades)
-        fig3, ax3 = plt.subplots(figsize=(4,4))
-        ax3.bar(contagem.keys(), contagem.values(), color=["#c0392b", "#e67e22", "#f1c40f", "#1ba755", "#7f8c8d"]) 
-        ax3.set_title("Ordens por Prioridade")
-        ax3.tick_params(axis='x', rotation=15)
-        FigureCanvasTkAgg(fig3, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True)
+        fig3, ax3 = plt.subplots(figsize=(4.5, 3.5))
+        bars2 = ax3.bar(contagem.keys(), contagem.values(), color=["#c0392b", "#e67e22", "#f1c40f", "#1ba755", "#7f8c8d"])
+        ax3.set_title("Ordens por Prioridade", fontsize=13)
+        ax3.tick_params(axis='x', rotation=15, labelsize=11)
+        ax3.tick_params(axis='y', labelsize=11)
+        for bar in bars2:
+            bar.set_edgecolor('#34495e')
+        for label in ax3.get_xticklabels():
+            label.set_fontsize(11)
+        fig3.tight_layout(pad=1.5)
+        FigureCanvasTkAgg(fig3, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
 
     def _montar_os_mes(self):
         frame_os = tb.Frame(self.content_frame)
         frame_os.pack(fill="both", expand=False, pady=10)
 
-        tb.Label(frame_os, text="Ordens de Serviço deste mês", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        # Cabeçalho dinâmico com mês atual
+        meses = [
+            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        ]
+        hoje = datetime.today().date()
+        mes_nome = meses[hoje.month - 1]
+        tb.Label(frame_os, text=f"Ordens de Serviço de {mes_nome}", font=("Segoe UI", 12, "bold"), background="#3498db", foreground="#fff").pack(anchor="w", fill="x", pady=(0,2))
 
         scrollbar = tb.Scrollbar(frame_os)
         scrollbar.pack(side=RIGHT, fill=Y)
@@ -197,196 +257,53 @@ class AbaPainel:
         self.tree_os.pack(fill="both", expand=True)
         scrollbar.config(command=self.tree_os.yview)
 
+        # Linhas zebradas e cabeçalho destacado
         self.tree_os.tag_configure('par', background='#f2f2f2', foreground='black')
         self.tree_os.tag_configure('impar', background='white', foreground='black')
         self.tree_os.tag_configure('atrasada', background='#f8d7da', foreground='#c0392b', font=('Segoe UI', 10, 'bold'))
 
         self.carregar_os_mes()
 
-    def gerar_relatorio_pdf(self):
-        """Gera um PDF por setor (arquivo: <nome_setor>.pdf) com a lista de equipamentos e próximos planejamentos.
-
-        Melhora a apresentação com um cabeçalho e uma tabela simples.
-        """
-        if not REPORTLAB_AVAILABLE:
-            messagebox.showwarning("Dependência ausente", "A biblioteca 'reportlab' não está instalada. Instale com: pip install reportlab")
-            return
-
-        try:
-            import re
-            setores = setor_dao.listar_setores()
-            equipamentos = equipamento_dao.listar_equipamentos()
-            planejamentos = planejamento_dao.listar_planejamentos()
-
-            # map equipamento id -> lista de planejamentos preventivos
-            planos_por_equip = {}
-            for p in planejamentos:
-                if not p.equipamento or not getattr(p.equipamento, 'id', None):
-                    continue
-                if p.tipo and p.tipo.lower() != 'preventiva':
-                    continue
-                planos_por_equip.setdefault(p.equipamento.id, []).append(p)
-
-            # criar pasta de saída para relatórios
-            rel_folder = os.path.join(os.getcwd(), 'relatorios')
-            os.makedirs(rel_folder, exist_ok=True)
-
-            for setor in setores:
-                # sanitize filename
-                safe_name = re.sub(r"[^0-9a-zA-ZáéíóúÁÉÍÓÚãõâêôçÇ _-]", "", (setor.nome or "setor")).strip()
-                safe_name = safe_name.replace(' ', '_') or f"setor_{setor.id}"
-                filename = os.path.join(rel_folder, f"{safe_name}.pdf")
-
-                # usar platypus para melhor layout e quebrar células longas
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-                from reportlab.lib import colors
-                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                from reportlab.lib.units import cm
-
-                doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
-                styles = getSampleStyleSheet()
-                styleH = styles['Heading1']
-                styleN = styles['BodyText']
-                small = ParagraphStyle('small', parent=styles['Normal'], fontSize=9, leading=11)
-                small_bold = ParagraphStyle('small_bold', parent=styles['Normal'], fontSize=10, leading=12, spaceAfter=6)
-
-                elements = []
-
-                # cabeçalho com logo e nome do app
-                logo_path = 'image/favicon.png'
-                try:
-                    img = Image(logo_path, width=2*cm, height=2*cm)
-                except Exception:
-                    img = None
-
-                header_table_data = []
-                left_cells = []
-                if img:
-                    left_cells.append(img)
-                else:
-                    left_cells.append(Paragraph('', styleN))
-                left_cells.append(Paragraph(f"<b>{'ManuSys'}</b>", styleN))
-                header_table_data.append(left_cells)
-                header_table = Table([[img, Paragraph(f"<b>{'ManuSys'}</b>")]], colWidths=[2*cm, 12*cm]) if img else Table([[Paragraph(f"<b>{'ManuSys'}</b>")]], colWidths=[14*cm])
-                header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
-                elements.append(header_table)
-                elements.append(Spacer(1, 8))
-
-                elements.append(Paragraph(f"Relatório - Setor: <b>{setor.nome}</b>", styleH))
-                elements.append(Paragraph(f"Responsável: {setor.responsavel or 'N/A'}", small))
-                elements.append(Paragraph(f"Gerado em: {datetime.today().strftime('%d/%m/%Y %H:%M')}", small))
-                elements.append(Spacer(1, 12))
-
-                # montar tabela de equipamentos
-                data_table = [[
-                    Paragraph('<b>ID</b>', small_bold),
-                    Paragraph('<b>Nome</b>', small_bold),
-                    Paragraph('<b>Nº Série</b>', small_bold),
-                    Paragraph('<b>Tipo</b>', small_bold),
-                    Paragraph('<b>Periodicidade</b>', small_bold),
-                    Paragraph('<b>Próxima Manutenção</b>', small_bold),
-                ]]
-
-                eqs = [e for e in equipamentos if str(getattr(e, 'setor', '')) == str(setor.id)]
-                if not eqs:
-                    data_table.append([
-                        Paragraph('-', small),
-                        Paragraph('(Nenhum equipamento cadastrado neste setor)', small),
-                        Paragraph('-', small),
-                        Paragraph('-', small),
-                        Paragraph('-', small),
-                        Paragraph('-', small),
-                    ])
-                for eq in eqs:
-                    planos = planos_por_equip.get(eq.id, [])
-                    if planos:
-                        parts = []
-                        next_dates = []
-                        for p in planos:
-                            freq = p.frequencia or (str(p.dias_previstos) + ' dias' if p.dias_previstos else 'N/A')
-                            try:
-                                prox = p.proxima_data()
-                            except Exception:
-                                prox = None
-                            prox_str = _format_date_safe(prox) if prox else 'Sem data prevista'
-                            parts.append(f"{freq} -> {prox_str}")
-                            dobj = _parse_date_obj(prox)
-                            if dobj:
-                                next_dates.append(dobj)
-                        periodicidade_text = '<br/>'.join(parts)
-                        next_str = _format_date_safe(min(next_dates)) if next_dates else 'Sem data prevista'
-                    else:
-                        periodicidade_text = 'Sem planejamento'
-                        next_str = 'Sem data prevista'
-
-                    data_table.append([
-                        Paragraph(str(eq.id), small),
-                        Paragraph(str(eq.nome or ''), small),
-                        Paragraph(str(getattr(eq, 'numero_serie', '') or ''), small),
-                        Paragraph(str(getattr(eq, 'tipo', '') or ''), small),
-                        Paragraph(periodicidade_text, small),
-                        Paragraph(next_str, small),
-                    ])
-
-                # criar table com larguras de coluna (ajustadas ao A4 e margens)
-                col_widths = [1.4*cm, 5.0*cm, 2.8*cm, 2.5*cm, 4.5*cm, 1.8*cm]
-                tbl = Table(data_table, colWidths=col_widths, repeatRows=1)
-                tbl.setStyle(TableStyle([
-                    ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-                    ('LEFTPADDING', (0,0), (-1,-1), 4),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
-                    ('ALIGN', (0,0), (0,-1), 'CENTER'),
-                    ('ALIGN', (5,0), (5,-1), 'CENTER'),
-                ]))
-
-                elements.append(tbl)
-                # adicionar rodapé com número de página
-                def _footer(canvas_obj, doc_obj):
-                    canvas_obj.saveState()
-                    footer_text = f"Página {doc_obj.page}"
-                    canvas_obj.setFont('Helvetica', 8)
-                    canvas_obj.drawRightString(A4[0] - 40, 20, footer_text)
-                    canvas_obj.restoreState()
-
-                doc.build(elements, onFirstPage=_footer, onLaterPages=_footer)
-
-            messagebox.showinfo("Relatório gerado", f"Relatórios por setor gerados com sucesso em: {rel_folder}")
-        except Exception as e:
-            messagebox.showerror("Erro", f"Falha ao gerar relatório: {e}")
 
     def carregar_os_mes(self):
-        
+        # limpa a tabela
         for item in self.tree_os.get_children():
             self.tree_os.delete(item)
 
         hoje = datetime.today().date()
         manutencoes = manutencao_dao.listar_manutencoes()
 
-        # filtra apenas preventivas do mês atual
-        os_mes = [
-    m for m in manutencoes 
-    if m.data_prevista
-    and m.data_prevista.month == hoje.month
-    and m.data_prevista.year == hoje.year
-    and (m.tipo or "").lower() == "preventiva"
-    and ((m.status or "").lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')) != "concluida"
-]       
-        
+        # Mostrar apenas manutenções associadas a planejamento
+        # 1. Que serão abertas neste mês (data_prevista no mês atual)
+        # 2. Ou que foram abertas em meses anteriores e não encerradas
+        os_mes = []
+        for m in manutencoes:
+            if not getattr(m, 'planejamento', None):
+                continue  # só mostra OS de planejamento
+            if m.data_prevista:
+                # OS deste mês
+                if m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year:
+                    os_mes.append((m, False))  # False = não é atrasada
+                # OS de meses anteriores ainda abertas
+                elif m.data_prevista < hoje and (m.data_prevista.month != hoje.month or m.data_prevista.year != hoje.year):
+                    if getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
+                        os_mes.append((m, True))  # True = atrasada
 
-        # salva a lista como variável de instância
-        self.os_filtradas_mes = os_mes
+        # insere no treeview
+        for i, (m, atrasada) in enumerate(os_mes):
+            tag = 'atrasada' if atrasada else ('par' if i % 2 == 0 else 'impar')
+            self.tree_os.insert(
+                "",
+                "end",
+                values=(
+                    m.id,
+                    m.tipo or "",
+                    m.equipamento.nome if hasattr(m, 'equipamento') and m.equipamento else "",
+                    m.responsavel.nome if hasattr(m, 'responsavel') and m.responsavel else "",
+                    _format_date_safe(m.data_prevista),
+                    m.prioridade or "",
+                    m.status or ""
+                ),
+                tags=(tag,)
+            )
 
-        for i, m in enumerate(os_mes):
-            eq = m.equipamento.nome if m.equipamento else "N/A"
-            resp = m.responsavel.nome if m.responsavel else "N/A"
-            data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
-            prioridade = m.prioridade if m.prioridade else "Sem Prioridade"
-
-            if m.data_prevista < hoje and (m.status or "").lower() not in ('concluida', 'revisada'):
-                tag = 'atrasada'
-            else:
-                tag = 'par' if i % 2 == 0 else 'impar'
-
-            self.tree_os.insert("", "end", values=(m.id, m.tipo, eq, resp, data, prioridade, m.status), tags=(tag,))
