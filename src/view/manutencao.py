@@ -1,12 +1,11 @@
 from src.model import session
-import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import messagebox, LEFT
 from src.model.manutencao import Manutencao
 from src.dao import manutencao_dao, usuario_dao, equipamento_dao, planejamento_dao
 from src.model.planejamento import Planejamento
 from datetime import date, datetime,timedelta
-
+import ttkbootstrap as tb
 
 class AbaManutencao:
     def __init__(self, notebook,aba_planejamento=None):
@@ -155,14 +154,16 @@ class AbaManutencao:
         tb.Button(frame_botoes_tree, text="Excluir", bootstyle=DANGER, command=self.excluir).pack(side=LEFT, padx=5)
 
     def carregar_dados(self):
-       
+        
+        # Limpa tabela
         for item in self.tree.get_children():
             self.tree.delete(item)
-        self.lista_os= manutencao_dao.listar_manutencoes()
         
+        self.lista_os = manutencao_dao.listar_manutencoes()
         hoje = datetime.today().date()
         exibiveis = []
-        
+
+        # Filtra manutenções: não exibe as concluídas
         for m in self.lista_os:
             try:
                 is_future_planned = (
@@ -173,17 +174,42 @@ class AbaManutencao:
                 )
             except Exception:
                 is_future_planned = False
-            
-            # Filtra manutenções concluídas e futuras preventivas programadas
-            if not is_future_planned and (m.status != 'Concluída' and (m.status or "").lower() != 'concluída'):
+
+            if not is_future_planned and (m.status or "").lower() != 'concluída':
                 exibiveis.append(m)
 
         for i, m in enumerate(exibiveis):
-            tag = 'par' if i % 2 == 0 else 'impar'
+            # Cor por prioridade
+            prioridade = (m.prioridade or "").lower()
+            status = (m.status or "").lower()
+
+            if prioridade == "urgente":
+                tag = 'urgente'  # vermelho
+            elif prioridade == "alta":
+                tag = 'alta'  # laranja
+            elif prioridade == "baixa":
+                tag = 'baixa'  # cinza
+            elif prioridade == "sem prioridade":
+                tag = 'sem_prioridade'  # amarelo
+            else:
+                tag = 'par' if i % 2 == 0 else 'impar'  # padrão
+
             eq = m.equipamento.nome if m.equipamento else "N/A"
             resp = m.responsavel.nome if m.responsavel else "N/A"
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
+
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
+
+        # Configura cores no Treeview
+        self.tree.tag_configure('urgente', background='#F44336', foreground='white')    # vermelho
+        self.tree.tag_configure('alta', background='#FF9800', foreground='white')       # laranja
+        self.tree.tag_configure('baixa', background='#B0BEC5', foreground='black')      # cinza
+        self.tree.tag_configure('sem_prioridade', background='#FFEB3B', foreground='black')  # amarelo
+        self.tree.tag_configure('par', background='#f2f2f2', foreground='black')
+        self.tree.tag_configure('impar', background='white', foreground='black')
+
+            
+
 
     def pesquisar_manutencao(self):
         termo = self.entry_pesquisa.get().strip().lower()
