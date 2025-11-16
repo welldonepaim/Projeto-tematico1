@@ -39,12 +39,8 @@ class Planejamento:
         return None
 
     def proxima_data(self) -> Optional[date]:
-        """Retorna a próxima data prevista para geração da manutenção.
-
-        Regras:
-        - Se não houver `last_gerada`, a próxima é `data_inicial`.
-        - Caso contrário, soma `dias_previstos` (ou derivado de `frequencia`) a `last_gerada`.
-        """
+        """Retorna a próxima data prevista para geração da manutenção."""
+   
         if not self.data_inicial:
             return None
 
@@ -57,10 +53,9 @@ class Planejamento:
         return self.last_gerada + timedelta(days=dias)
 
     def deve_gerar(self, referencia: Optional[date] = None) -> bool:
-        """Indica se, na data de referência (hoje por padrão), devemos gerar a manutenção.
-
-        Retorna True quando a próxima data prevista é igual a `referencia` ou `referencia - 1 dia`.
-        Isso atende ao requisito de aceitar 'hoje' ou 'ontem'.
+        """Se a data é igual a hoje, deve gerar a manutenção.
+        Se for ontem  também deve gerar.
+        caracterizada "atrasada" se for o caso.
         """
         if referencia is None:
             referencia = date.today()

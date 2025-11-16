@@ -48,8 +48,6 @@ class AbaManutencao:
         self.carregar_dados()
         self.bloquear_eventos = False
 
-                
-##  Formulário
     def _montar_formulario(self):
         labels = [
             "Tipo", "Equipamento", "Responsável",
@@ -112,6 +110,7 @@ class AbaManutencao:
                 self.entries[label] = combo
        
             # Botões
+
     def _montar_botoes(self):
             
         frame_botoes_form = tb.Frame(self.inner_frame)
@@ -124,9 +123,6 @@ class AbaManutencao:
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()
             
-############### Tabela
-
-
     def _montar_tabela(self):
         frame_tabela = tb.Frame(self.inner_frame)
         frame_tabela.grid(row=11, column=0, columnspan=2, pady=5, sticky="nsew")
@@ -189,7 +185,6 @@ class AbaManutencao:
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
 
-
     def pesquisar_manutencao(self):
         termo = self.entry_pesquisa.get().strip().lower()
         for item in self.tree.get_children():
@@ -218,7 +213,6 @@ class AbaManutencao:
             data = m.data_prevista.strftime("%d/%m/%Y") if m.data_prevista else ""
             self.tree.insert("", "end", values=(m.id, m.tipo, eq, resp, data, m.prioridade, m.status), tags=(tag,))
             
-    
     def editar(self):
        
         selecionado = self.tree.selection()
@@ -265,8 +259,7 @@ class AbaManutencao:
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
     def salvar(self):
-               
-        
+            
         try:
             tipo = self.entries["Tipo"].get()
             equipamento_str = self.entries["Equipamento"].get()
@@ -275,8 +268,6 @@ class AbaManutencao:
             documento = self.entries["Documento"].get()
             acoes = self.entries["Ações Realizadas"].get()
             obs = self.entries["Observações"].get()
-
-
             prioridade = self.entries["Prioridade"].get()
             status = self.entries["Status"].get()
             periodicidade = self.entries["Periodicidade"].get() if "Periodicidade" in self.entries else None
@@ -290,12 +281,26 @@ class AbaManutencao:
             if tipo == "Preventiva" and status == "Programada" and not periodicidade:
                 messagebox.showwarning("Atenção", "Para manutenções Preventivas e Programadas, o campo Periodicidade é obrigatório.")
                 return
-            
+
             equipamento_id = int(equipamento_str.split(" - ")[0])
             responsavel_id = int(responsavel_str.split(" - ")[0])
-
             equipamento = equipamento_dao.buscar_equipamento_por_id(equipamento_id)
             responsavel = usuario_dao.buscar_usuario_por_id(responsavel_id)
+
+            # Impede duplicidade apenas se for nova OS ou outro equipamento
+            manuts = manutencao_dao.listar_manutencoes()
+            for m in manuts:
+                if self.manutencao_em_edicao["id"] and m.id == self.manutencao_em_edicao["id"]:
+                    continue  # ignora manutenção em edição
+                if m.equipamento and m.equipamento.id == equipamento.id:
+                    m_tipo = (m.tipo or "").lower()
+                    m_status = (m.status or "").lower()
+                    if tipo == "Preventiva" and m_tipo == "preventiva" and m_status != "concluída":
+                        messagebox.showwarning("Atenção", "Já existe uma OS preventiva aberta para este equipamento. Não é possível criar outra.")
+                        return
+                    if tipo == "Corretiva" and m_tipo == "corretiva" and m_status != "concluída":
+                        messagebox.showwarning("Atenção", "Já existe uma OS corretiva aberta para este equipamento. Não é possível criar outra.")
+                        return
 
             # Se for Preventiva Programada, cria planejamento
             if tipo == "Preventiva" and status == "Programada":
@@ -333,10 +338,9 @@ class AbaManutencao:
                     return
 
                 messagebox.showinfo("Sucesso", "Planejamento cadastrado com sucesso! A manutenção será gerada quando chegar a data prevista.")
-               
                 if self.aba_planejamento:
                     self.aba_planejamento.carregar_planejamentos()
-                    
+
             else:
                 # Manutenção simples (Corretiva, Preditiva ou Preventiva não programada)
                 manutencao = Manutencao(
@@ -356,14 +360,8 @@ class AbaManutencao:
                     # Atualiza existente
                     manutencao_dao.atualizar_manutencao(manutencao)
                     messagebox.showinfo("Sucesso", "Manutenção atualizada com sucesso!")
-                    status_antigo=None 
-                    if self.manutencao_em_edicao["id"]:
-                        manut_antigo = manutencao_dao.buscar_manutencao_por_id(self.manutencao_em_edicao["id"])
-                        status_antigo = manut_antigo.status
                     if status == "Concluída":
-                        
                         self.concluir_manutencao(manutencao.id)
-
                 else:
                     # Nova manutenção
                     manutencao_dao.inserir_manutencao(manutencao)
@@ -380,7 +378,9 @@ class AbaManutencao:
 
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
-
+    
+        
+        
 
     def excluir(self):
         selecionado = self.tree.selection()
@@ -407,7 +407,7 @@ class AbaManutencao:
         """
         Limpa todos os campos do formulário e impede que o on_tipo_change rode sozinho.
         """
-        self.bloquear_eventos = True   # <--- IMPRESCINDÍVEL
+        self.bloquear_eventos = True   # IMPRESCINDÍVEL
 
         for label, entry in self.entries.items():
 
@@ -428,10 +428,12 @@ class AbaManutencao:
         # Reset do modo edição
         self.manutencao_em_edicao["id"] = None
         self.entries["Tipo"].configure(state="readonly")
+        self.entries["Equipamento"].configure(state="readonly")
         self.btn_salvar.config(text="Salvar Manutenção", bootstyle=SUCCESS)
         self.btn_cancelar.pack_forget()
 
         self.bloquear_eventos = False 
+  
     def _atualizar_equipamentos(self):
         self.equipamentos = equipamento_dao.listar_equipamentos()
         combo_eq = self.entries.get("Equipamento")
@@ -488,58 +490,90 @@ class AbaManutencao:
             self.carregar_dados()
             if self.aba_planejamento:
                 self.aba_planejamento.carregar_planejamentos()
+  
     def gerar_os_do_dia(self):
-       ## ESSA FUNÇÃO DEVE SER IMPLEMENTADA POR ULTIMO
-       ##
-       ###
-       #####
+ 
         planejamentos = planejamento_dao.listar_planejamentos()
         hoje = date.today()
 
         for p in planejamentos:
-            # Garantir que last_gerada e data_inicial sejam date
+            if not p.equipamento:
+                continue
+
+            # Próxima data a gerar
             last_gerada = p.last_gerada
             if isinstance(last_gerada, str):
-                last_gerada = datetime.strptime(last_gerada, "%Y-%m-%d").date()
-            
+                last_gerada = datetime.strptime(last_gerada, "%Y-%m-%d").date() if last_gerada else None
+
             data_inicial = p.data_inicial
             if isinstance(data_inicial, str):
                 data_inicial = datetime.strptime(data_inicial, "%Y-%m-%d").date()
 
+            # Calcula a próxima data a gerar OS
             proxima_data = last_gerada + timedelta(days=p.dias_previstos) if last_gerada else data_inicial
 
-            # Só gera OS se a data for hoje ou anterior
+            # Se a próxima data for maior que hoje, ignora
             if proxima_data > hoje:
                 continue
 
-            # Evita criar OS duplicadas
-            if self.existe_os_aberta_no_banco(p.id, proxima_data):
+            # Verifica se já existe uma OS preventiva para o equipamento na data de hoje
+            os_existente = manutencao_dao.listar_manutencoes()
+            existe_para_hoje = any(
+                m.equipamento and m.equipamento.id == p.equipamento.id and
+                (m.tipo or "").lower() == "preventiva" and
+                m.data_prevista == hoje and
+                (m.status or "").lower() != "concluída"
+                for m in os_existente
+            )
+            if existe_para_hoje:
                 continue
 
-            # Cria a OS preventiva
+            # Cria OS preventiva para hoje
             manutencao = Manutencao(
                 tipo="Preventiva",
                 equipamento=p.equipamento,
                 responsavel=p.responsavel,
-                data_prevista=proxima_data,
+                data_prevista=hoje,
                 status="Pendente",
                 observacoes=f"Preventiva automática (Periodicidade: {p.dias_previstos} dias)",
                 planejamento=p
             )
             manutencao_dao.inserir_manutencao(manutencao)
 
-            # Atualiza a última geração
-            p.last_gerada = proxima_data
+            # Atualiza a última geração para hoje
+            p.last_gerada = hoje
             planejamento_dao.atualizar_planejamento(p)
 
-    def existe_os_aberta_no_banco(self, id_planejamento: int, data_prevista: date) -> bool:
-            manuts = manutencao_dao.listar_manutencoes_por_planejamento(id_planejamento)
-            for m in manuts:
-                if m.status != "Concluída" and m.data_prevista == data_prevista:
+
+#essa função serve para evitar a criação de ordens de serviço duplicadas para o mesmo planejamento na mesma data prevista
+    def existe_os_aberta_no_banco(self, equipamento_id: int, tipo_manutencao: str) -> bool:
+        """
+        Retorna True se já existe:
+        - Preventiva: planejamento ativo para o equipamento
+        - Corretiva: OS aberta para o mesmo equipamento
+        """
+        tipo_manutencao = (tipo_manutencao or "").lower()
+
+        if tipo_manutencao == "preventiva":
+            planejamentos = planejamento_dao.listar_planejamentos()
+            for p in planejamentos:
+                if p.equipamento and p.equipamento.id == equipamento_id and (p.estagio or "").lower() == "ativo":
                     return True
-            return False
+
+        elif tipo_manutencao == "corretiva":
+            manuts = manutencao_dao.listar_manutencoes()
+            for m in manuts:
+                if m.equipamento and m.equipamento.id == equipamento_id:
+                    status = (m.status or "").strip().lower()
+                    if status != "concluída" and (m.tipo or "").lower() == "corretiva":
+                        return True
+
+        return False
+
             
     def on_tipo_change(self, event=None):
+
+
         if self.bloquear_eventos:
             return
         tipo = self.entries["Tipo"].get()
@@ -582,3 +616,5 @@ class AbaManutencao:
                 data_entry.entry.config(state="normal")
             else:
                 data_entry.entry.config(state="readonly")
+
+    

@@ -32,7 +32,12 @@ def _parse_date_obj(date_str):
 def _format_date_safe(date_obj):
     if not date_obj:
         return ""
-    return date_obj.strftime("%d/%m/%Y")
+    # Garante que é date/datetime
+    if isinstance(date_obj, str):
+        date_obj = _parse_date_obj(date_obj)
+    if hasattr(date_obj, 'strftime'):
+        return date_obj.strftime("%d/%m/%Y")
+    return str(date_obj)
 class LaudoUtil:
 
     @staticmethod
@@ -56,7 +61,8 @@ class LaudoUtil:
 
         for m in laudos:
             equipamento = m.equipamento.nome if m.equipamento else "N/A"
-            data = m.data.strftime("%d/%m/%Y") if m.data else ""
+            # Garante que m.data é date
+            data = _format_date_safe(m.data) if hasattr(m, 'data') else ""
             responsavel = m.responsavel.nome if m.responsavel else "N/A"
             arquivo = m.laudo if m.laudo else "Sem arquivo"
 
@@ -172,8 +178,8 @@ class RelatorioPDFUtil:
 
             # Bloco de informações do setor
             info_table = Table([
-                [Paragraph(f"<b>Setor:</b> {setor.nome}", small_bold),
-                 Paragraph(f"<b>Responsável:</b> {setor.responsavel}", small_bold),
+                [Paragraph(f"<b>Setor:</b> {getattr(setor, 'nome', str(setor))}", small_bold),
+                 Paragraph(f"<b>Responsável:</b> {getattr(setor, 'responsavel', str(getattr(setor, 'responsavel', '')))}", small_bold),
                  Paragraph(f"<b>Gerado em:</b> {datetime.today().strftime('%d/%m/%Y %H:%M')}", small_bold)]
             ], colWidths=[6*cm, 4.5*cm, 3.5*cm])
             info_table.setStyle(TableStyle([

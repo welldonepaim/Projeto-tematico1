@@ -1,9 +1,11 @@
 # auto_reload.py
+
 import subprocess
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import os
+import sys
 
 class RestartHandler(FileSystemEventHandler):
     def __init__(self, script):
@@ -13,8 +15,15 @@ class RestartHandler(FileSystemEventHandler):
 
     def start_app(self):
         if self.process:
-            self.process.terminate()
-        self.process = subprocess.Popen(["python", self.script])
+            try:
+                if os.name == 'nt':
+                    self.process.kill()
+                else:
+                    self.process.terminate()
+            except Exception:
+                pass
+        # Usa o mesmo Python do ambiente virtual ou sistema
+        self.process = subprocess.Popen([sys.executable, self.script])
 
     def on_modified(self, event):
         if event.src_path.endswith(".py"):

@@ -8,7 +8,7 @@ from src.dao import manutencao_dao, equipamento_dao, planejamento_dao
 from src.dao import setor_dao
 import os
 from tkinter import messagebox
-from src.utils.relatorio import RelatorioPDFUtil
+from src.model.relatorio import RelatorioPDFUtil
 
 # tentativa de importar reportlab para gerar PDF; se não disponível, avisamos ao usuário
 try:
@@ -64,7 +64,7 @@ class AbaPainel:
         """Gera relatório PDF por setor usando utilitário ou exibe mensagem de erro se falhar."""
         try:
             if not REPORTLAB_AVAILABLE:
-                messagebox.showwarning("Dependência ausente", "A biblioteca 'reportlab' não está instalada. Instale com: pip install reportlab")
+                messagebox.showwarning("Instale reportlab")
                 return
             # Utilitário customizado (se existir)
             if 'RelatorioPDFUtil' in globals():
@@ -110,10 +110,10 @@ class AbaPainel:
         self.content_frame = tb.Frame(self.frame)
         self.content_frame.pack(fill="both", expand=True)
 
-        # Monta interface inicial
         self._montar_kpis()
         self._montar_graficos()
         self._montar_os_mes()
+    
 
        
 
@@ -150,11 +150,25 @@ class AbaPainel:
 
         total_equipamentos = len(equipamentos)
         equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
-        ordens_abertas = len([m for m in manutencoes if getattr(m, 'status', '').lower() in ('pendente', 'em análise', 'em manutencao', 'em manutção', 'em manutencao')])
+        ordens_abertas = len([m for m in manutencoes if getattr(m, 'status', '').lower() in ('pendente', 'em análise', 'em manutencão', 'programada')])
         hoje = datetime.today().date()
-        ordens_atrasadas = len([m for m in manutencoes if m.data_prevista and m.data_prevista < hoje and getattr(m, 'status', '').lower() not in ('concluida', 'revisada')])
-        # show count of planejamentos (placeholder: all for now)
-        proximos_planejamentos = len(planejamentos)
+        ordens_atrasadas = 0
+
+        for m in manutencoes:
+
+            # precisa ter data prevista
+            if not m.data_prevista:
+                continue
+
+            # precisa ter planejamento associado
+            planejamento_obj = getattr(m, 'planejamento', None)
+            planejamento_id = getattr(planejamento_obj, 'id', None)
+            if not planejamento_id:
+                continue
+
+            # está atrasada e não concluída
+            if m.data_prevista < hoje and getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
+                ordens_atrasadas += 1
 
         # create cards
         self._kpi_card(self.kpi_frame, "Equipamentos", total_equipamentos, f"{equipamentos_disponiveis} disponíveis", color=PRIMARY)
@@ -167,7 +181,7 @@ class AbaPainel:
         frame_graficos = tb.Frame(self.content_frame)
         frame_graficos.pack(fill="both", expand=True, pady=10)
 
-        # Gráfico 1: Distribuição equipamentos (pie)
+        # Gráfico 1: Distribuição equipamentos 
         equipamentos = equipamento_dao.listar_equipamentos()
         total_equipamentos = len(equipamentos)
         if total_equipamentos == 0:
@@ -236,14 +250,8 @@ class AbaPainel:
         frame_os = tb.Frame(self.content_frame)
         frame_os.pack(fill="both", expand=False, pady=10)
 
-        # Cabeçalho dinâmico com mês atual
-        meses = [
-            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-        ]
-        hoje = datetime.today().date()
-        mes_nome = meses[hoje.month - 1]
-        tb.Label(frame_os, text=f"Ordens de Serviço de {mes_nome}", font=("Segoe UI", 12, "bold"), background="#3498db", foreground="#fff").pack(anchor="w", fill="x", pady=(0,2))
+        # Cabeçalho da tabela com fundo azul PRIMARY igual ao botão
+        tb.Label(frame_os, text="Ordens de Serviço deste mês", font=("Segoe UI", 12, "bold"), background="#3498db", foreground="#fff").pack(anchor="w", fill="x", pady=(0,2))
 
         scrollbar = tb.Scrollbar(frame_os)
         scrollbar.pack(side=RIGHT, fill=Y)
@@ -264,7 +272,6 @@ class AbaPainel:
 
         self.carregar_os_mes()
 
-
     def carregar_os_mes(self):
         # limpa a tabela
         for item in self.tree_os.get_children():
@@ -273,33 +280,36 @@ class AbaPainel:
         hoje = datetime.today().date()
         manutencoes = manutencao_dao.listar_manutencoes()
 
-        # Mostrar apenas manutenções associadas a planejamento
-        # 1. Que serão abertas neste mês (data_prevista no mês atual)
-        # 2. Ou que foram abertas em meses anteriores e não encerradas
         os_mes = []
         for m in manutencoes:
-            if not getattr(m, 'planejamento', None):
-                continue  # só mostra OS de planejamento
-            if m.data_prevista:
-                # OS deste mês
-                if m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year:
-                    os_mes.append((m, False))  # False = não é atrasada
-                # OS de meses anteriores ainda abertas
-                elif m.data_prevista < hoje and (m.data_prevista.month != hoje.month or m.data_prevista.year != hoje.year):
-                    if getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
-                        os_mes.append((m, True))  # True = atrasada
+            if not m.data_prevista:
+                continue
+            # Só mostra OS associadas a planejamento
+            planejamento_id = getattr(m, 'planejamento', None).id if getattr(m, 'planejamento', None) else None
+            if not planejamento_id:
+                continue
+            # OS do mês atual
+            if m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year:
+                os_mes.append((m, False))
+            # OS de meses anteriores ainda abertas
+            elif m.data_prevista < hoje and (m.data_prevista.month != hoje.month or m.data_prevista.year != hoje.year):
+                if getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
+                    os_mes.append((m, True))
 
         # insere no treeview
         for i, (m, atrasada) in enumerate(os_mes):
             tag = 'atrasada' if atrasada else ('par' if i % 2 == 0 else 'impar')
+            # Nome do equipamento e responsável
+            eq_nome = m.equipamento.nome if hasattr(m, 'equipamento') and m.equipamento else getattr(m, 'equipamento_nome', "")
+            resp_nome = m.responsavel.nome if hasattr(m, 'responsavel') and m.responsavel else getattr(m, 'responsavel', "")
             self.tree_os.insert(
                 "",
                 "end",
                 values=(
                     m.id,
                     m.tipo or "",
-                    m.equipamento.nome if hasattr(m, 'equipamento') and m.equipamento else "",
-                    m.responsavel.nome if hasattr(m, 'responsavel') and m.responsavel else "",
+                    eq_nome,
+                    resp_nome,
                     _format_date_safe(m.data_prevista),
                     m.prioridade or "",
                     m.status or ""

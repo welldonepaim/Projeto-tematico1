@@ -27,7 +27,5 @@ class Manutencao:
         "Em Análise",
         "Em Manutenção",
         "Concluída",
-        "Revisada",
-        "Disponível",
-        "Descontinuado",
+        
     )

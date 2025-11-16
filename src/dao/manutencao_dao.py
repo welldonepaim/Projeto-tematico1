@@ -21,7 +21,7 @@ def criar_tabela_manutencao():
                 acoes_realizadas TEXT,
                 observacoes TEXT,
                 status TEXT CHECK(status IN (
-                    'Programada','Pendente','Em Análise','Em Manutenção','Concluída','Revisada','Disponível','Descontinuado'
+                    'Programada','Pendente','Em Análise','Em Manutenção','Concluída'
                 )) NOT NULL,
                 prioridade TEXT CHECK(prioridade IN ('Urgente','Alta','Média','Baixa','Sem Prioridade')) NOT NULL DEFAULT 'Sem Prioridade',
                 planejamento_id INTEGER,
