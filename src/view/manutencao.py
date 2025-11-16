@@ -42,12 +42,14 @@ class AbaManutencao:
         self._montar_formulario()
         self._montar_botoes()
         self._montar_tabela()
-
+        self.limpar_formulario()
         self._atualizar_equipamentos()
         self._atualizar_usuarios()
         self.carregar_dados()
+        self.bloquear_eventos = False
+
                 
-##############  Formulário
+##  Formulário
     def _montar_formulario(self):
         labels = [
             "Tipo", "Equipamento", "Responsável",
@@ -61,6 +63,7 @@ class AbaManutencao:
             if label == "Tipo":
                 combo = tb.Combobox(self.inner_frame, values=["Preventiva", "Corretiva", "Preditiva"], state="readonly")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
+                combo.bind("<<ComboboxSelected>>", self.on_tipo_change)
                 self.entries[label] = combo
 
             elif label == "Prioridade":
@@ -95,20 +98,20 @@ class AbaManutencao:
             elif label == "Status":
                 combo = tb.Combobox(self.inner_frame, values=[
                      "Programada","Pendente","Em Análise", "Em Manutenção",
-                    "Concluída", "Revisada", "Disponível", "Descontinuado"
+                    "Concluída"
                 ], state="readonly")
-                combo.set("Programada")
+                combo.set("")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
             elif label == "Periodicidade":
                 combo = tb.Combobox(self.inner_frame, values=[
                      "Diario","Semanal","Mensal","Trimestral","Semestral","Anual"
-                ],state=READONLY)
+                ],state="readonly")
                 combo.set("")
                 combo.grid(row=i, column=1, padx=5, pady=5, sticky="ew")
                 self.entries[label] = combo
-##############  Botões
-
+       
+            # Botões
     def _montar_botoes(self):
             
         frame_botoes_form = tb.Frame(self.inner_frame)
@@ -232,11 +235,19 @@ class AbaManutencao:
             messagebox.showerror("Erro", "Manutenção não encontrada.")
             return
 
-        self.manutencao_em_edicao["id"] = manutencao.id
         self.entries["Tipo"].set(manutencao.tipo)
+        self.entries["Tipo"].configure(state="disabled")  # tipo bloqueado
         self.entries["Equipamento"].set(f"{manutencao.equipamento.id} - {manutencao.equipamento.nome}")
+        self.entries["Equipamento"].configure(state="disabled")
         self.entries["Responsável"].set(f"{manutencao.responsavel.id} - {manutencao.responsavel.nome}")
+
+        # Data Prevista
+        if manutencao.status == "Concluída":
+            self.entries["Data Prevista"].entry.config(state="readonly")
+        else:
+            self.entries["Data Prevista"].entry.config(state="normal")
         self.entries["Data Prevista"].set_date(manutencao.data_prevista)
+
         self.entries["Documento"].delete(0, "end")
         self.entries["Documento"].insert(0, manutencao.documento or "")
         self.entries["Ações Realizadas"].delete(0, "end")
@@ -244,13 +255,18 @@ class AbaManutencao:
         self.entries["Observações"].delete(0, "end")
         self.entries["Observações"].insert(0, manutencao.observacoes or "")
         self.entries["Prioridade"].set(manutencao.prioridade)
+        
+        # Status sempre editável em OS existente
         self.entries["Status"].set(manutencao.status)
+        self.entries["Status"].configure(state="readonly")
 
+        self.manutencao_em_edicao["id"] = manutencao.id
         self.btn_salvar.config(text="Atualizar Manutenção", bootstyle=WARNING)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
 
     def salvar(self):
                
+        
         try:
             tipo = self.entries["Tipo"].get()
             equipamento_str = self.entries["Equipamento"].get()
@@ -259,9 +275,11 @@ class AbaManutencao:
             documento = self.entries["Documento"].get()
             acoes = self.entries["Ações Realizadas"].get()
             obs = self.entries["Observações"].get()
+
+
             prioridade = self.entries["Prioridade"].get()
             status = self.entries["Status"].get()
-            periodicidade = self.entries["Periodicidade"].get().strip()
+            periodicidade = self.entries["Periodicidade"].get() if "Periodicidade" in self.entries else None
 
             # Validação obrigatória
             if not (tipo and equipamento_str and responsavel_str and data_prevista and status):
@@ -272,15 +290,15 @@ class AbaManutencao:
             if tipo == "Preventiva" and status == "Programada" and not periodicidade:
                 messagebox.showwarning("Atenção", "Para manutenções Preventivas e Programadas, o campo Periodicidade é obrigatório.")
                 return
-
+            
             equipamento_id = int(equipamento_str.split(" - ")[0])
             responsavel_id = int(responsavel_str.split(" - ")[0])
 
             equipamento = equipamento_dao.buscar_equipamento_por_id(equipamento_id)
             responsavel = usuario_dao.buscar_usuario_por_id(responsavel_id)
 
+            # Se for Preventiva Programada, cria planejamento
             if tipo == "Preventiva" and status == "Programada":
-                # Mapear periodicidade para dias
                 freq_map = {
                     "Diario": 1,
                     "Semanal": 7,
@@ -315,11 +333,10 @@ class AbaManutencao:
                     return
 
                 messagebox.showinfo("Sucesso", "Planejamento cadastrado com sucesso! A manutenção será gerada quando chegar a data prevista.")
-
-                # Atualiza a Treeview da aba de Planejamento automaticamente
+               
                 if self.aba_planejamento:
                     self.aba_planejamento.carregar_planejamentos()
-
+                    
             else:
                 # Manutenção simples (Corretiva, Preditiva ou Preventiva não programada)
                 manutencao = Manutencao(
@@ -336,31 +353,34 @@ class AbaManutencao:
                 )
 
                 if manutencao.id:
+                    # Atualiza existente
                     manutencao_dao.atualizar_manutencao(manutencao)
                     messagebox.showinfo("Sucesso", "Manutenção atualizada com sucesso!")
+                    status_antigo=None 
+                    if self.manutencao_em_edicao["id"]:
+                        manut_antigo = manutencao_dao.buscar_manutencao_por_id(self.manutencao_em_edicao["id"])
+                        status_antigo = manut_antigo.status
                     if status == "Concluída":
-                        manutencao.data_encerramento = date.today()
-                        planejamento = getattr(manutencao, "planejamento", None)
-                        if planejamento:
-                            hoje = date.today()
-                            planejamento.last_gerada = hoje
-                            planejamento.data_inicial = hoje + timedelta(days=planejamento.dias_previstos)
-                            planejamento_dao.atualizar_planejamento(planejamento)
+                        
+                        self.concluir_manutencao(manutencao.id)
 
                 else:
+                    # Nova manutenção
                     manutencao_dao.inserir_manutencao(manutencao)
                     messagebox.showinfo("Sucesso", "Manutenção cadastrada com sucesso!")
-
-            # Limpar formulário
-            self.limpar_formulario()
 
             # Atualizar combos e Treeview
             self._atualizar_equipamentos()
             self._atualizar_usuarios()
             self.carregar_dados()
+            if self.manutencao_em_edicao["id"]:
+                self.cancelar_edicao()  # sai do menu
+            else:
+                self.limpar_formulario()  # apenas limpa para nova entrada
 
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível salvar: {e}")
+
 
     def excluir(self):
         selecionado = self.tree.selection()
@@ -382,29 +402,42 @@ class AbaManutencao:
                 messagebox.showinfo("Sucesso", "Manutenção excluída com sucesso!")
             except Exception as e:
                 messagebox.showerror("Erro", f"Não foi possível excluir: {e}")
-
+ 
     def limpar_formulario(self):
-        for entry in self.entries.values():
+        """
+        Limpa todos os campos do formulário e impede que o on_tipo_change rode sozinho.
+        """
+        self.bloquear_eventos = True   # <--- IMPRESCINDÍVEL
+
+        for label, entry in self.entries.items():
+
+            # TEXTOS
             if isinstance(entry, tb.Entry):
                 entry.delete(0, "end")
+
+            # COMBOBOXES
             elif isinstance(entry, tb.Combobox):
                 entry.set("")
-            elif isinstance(entry, tb.DateEntry):
-                entry.set_date(date.today())
-        self.manutencao_em_edicao["id"] = None
+                entry.configure(state="readonly")
 
-    def cancelar_edicao(self):
-        self.limpar_formulario()
+            # DATEENTRY
+            elif isinstance(entry, tb.DateEntry):
+                entry.set_date(datetime.today().date())
+                entry.entry.config(state="normal")  # sempre liberado ao limpar
+
+        # Reset do modo edição
+        self.manutencao_em_edicao["id"] = None
+        self.entries["Tipo"].configure(state="readonly")
         self.btn_salvar.config(text="Salvar Manutenção", bootstyle=SUCCESS)
         self.btn_cancelar.pack_forget()
 
+        self.bloquear_eventos = False 
     def _atualizar_equipamentos(self):
         self.equipamentos = equipamento_dao.listar_equipamentos()
         combo_eq = self.entries.get("Equipamento")
         if combo_eq:
             combo_eq['values'] = [f"{e.id} - {e.nome}" for e in self.equipamentos]
-            if self.equipamentos:
-                combo_eq.set(f"{self.equipamentos[0].id} - {self.equipamentos[0].nome}")
+            combo_eq.set("")
 
     def _atualizar_usuarios(self):
         self.usuarios = usuario_dao.listar_usuarios()
@@ -412,35 +445,54 @@ class AbaManutencao:
         if combo_resp:
             combo_resp['values'] = [f"{u.id} - {u.nome}" for u in self.usuarios]
             if self.usuarios:
-                combo_resp.set(f"{self.usuarios[0].id} - {self.usuarios[0].nome}")
-    def concluir_manutencao(self, manutencao_id):
-        manutencao = manutencao_dao.buscar_por_id(manutencao_id)
-        manutencao.status = "Concluída"
-        manutencao.data_encerramento = date.today()
-        manutencao_dao.atualizar(manutencao)
-
-        # Atualizar planejamento
-        planejamento = planejamento_dao.buscar_por_equipamento(manutencao.id_equipamento)
-        if planejamento:
-            hoje = date.today()
-            planejamento.data_ultima_execucao = hoje
-            planejamento.data_prevista = hoje + timedelta(days=planejamento.periodicidade)
-            planejamento_dao.atualizar(planejamento)
-
-        messagebox.showinfo("OK", "Manutenção concluída e próxima preventiva programada.")
-        self.carregar_dados()
-        if self.aba_planejamento:
-            self.aba_planejamento.carregar_planejamentos()
+                 combo_resp['values'] = [f"{u.id} - {u.nome}" for u in self.usuarios]
+                 combo_resp.set("")  
     
+    def cancelar_edicao(self):
+        self.limpar_formulario()
+        self.btn_salvar.config(text="Salvar Manutenção", bootstyle=SUCCESS)
+        self.btn_cancelar.pack_forget()
+        
+    def concluir_manutencao(self, manutencao_id):
+            manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
+            if not manutencao:
+                messagebox.showerror("Erro", "Manutenção não encontrada.")
+                return
 
-  
+            # Atualiza a manutenção como concluída
+            manutencao.status = "Concluída"
+            manutencao_dao.atualizar_manutencao(manutencao)
 
+            # Se essa manutenção faz parte de um planejamento
+            if manutencao.planejamento:
+                planejamento = planejamento_dao.buscar_planejamento_por_id(
+                    manutencao.planejamento.id
+                )
+
+                if planejamento:
+                    hoje = date.today()
+
+                    # Atualiza data da última execução
+                    planejamento.last_gerada = hoje
+
+                    # Recalcula próxima geração
+                    if planejamento.dias_previstos:
+                        planejamento.data_prevista = hoje + timedelta(days=planejamento.dias_previstos)
+
+                    planejamento_dao.atualizar_planejamento(planejamento)
+
+            messagebox.showinfo("Sucesso", "Manutenção concluída e próxima preventiva programada!")
+            self.limpar_formulario()
+
+            # Atualizar telas
+            self.carregar_dados()
+            if self.aba_planejamento:
+                self.aba_planejamento.carregar_planejamentos()
     def gerar_os_do_dia(self):
-       
-        """
-        Gera as OS preventivas do dia a partir dos planejamentos ativos,
-        evitando duplicações.
-        """
+       ## ESSA FUNÇÃO DEVE SER IMPLEMENTADA POR ULTIMO
+       ##
+       ###
+       #####
         planejamentos = planejamento_dao.listar_planejamentos()
         hoje = date.today()
 
@@ -470,7 +522,7 @@ class AbaManutencao:
                 equipamento=p.equipamento,
                 responsavel=p.responsavel,
                 data_prevista=proxima_data,
-                status="Programada",
+                status="Pendente",
                 observacoes=f"Preventiva automática (Periodicidade: {p.dias_previstos} dias)",
                 planejamento=p
             )
@@ -480,37 +532,53 @@ class AbaManutencao:
             p.last_gerada = proxima_data
             planejamento_dao.atualizar_planejamento(p)
 
-
-
     def existe_os_aberta_no_banco(self, id_planejamento: int, data_prevista: date) -> bool:
             manuts = manutencao_dao.listar_manutencoes_por_planejamento(id_planejamento)
             for m in manuts:
                 if m.status != "Concluída" and m.data_prevista == data_prevista:
                     return True
             return False
+            
+    def on_tipo_change(self, event=None):
+        if self.bloquear_eventos:
+            return
+        tipo = self.entries["Tipo"].get()
+        status_combo = self.entries["Status"]
+        status_combo.configure(state="disabled")
+        data_entry = self.entries["Data Prevista"]
+        periodicidade_entry = self.entries["Periodicidade"]
+        periodicidade_entry.config(state="disabled") # desabilita por padrão
 
+        if data_entry is None:
+            return  
+        #Para que quando eu definir algum tipo de manutenção o campo de data seja preenchido automaticamente com a data atual
+        try:
+            data_entry.set_date(datetime.today().date())
+        except Exception:
+            pass
+        
+        #Para saber quando estou criando uma nova OS
+        if self.manutencao_em_edicao["id"] is None:
 
-    def concluir_manutencao(self, manutencao_id):
-        manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
-        manutencao.status = "Concluída"
-        manutencao.data_encerramento = date.today()
-        manutencao_dao.atualizar_manutencao(manutencao)
+                # Preventiva  Programada
+            if tipo == "Preventiva":
+                status_combo.set("Programada")
+                status_combo.configure(state="disabled")
+                data_entry.entry.config(state="normal")
+                periodicidade_entry.config(state="readonly")
 
-        # Atualiza planejamento se existir
-        planejamento = getattr(manutencao, "planejamento", None)
-        if planejamento:
-            hoje = date.today()
-            planejamento.last_gerada = hoje  # registra a última execução
-            planejamento.data_inicial = hoje + timedelta(days=planejamento.dias_previstos)  # próxima prevista
-            planejamento_dao.atualizar_planejamento(planejamento)
+            # Qualquer outro tipo  Pendente
+            else:
+                status_combo.set("Pendente")
+                status_combo.configure(state="disabled")  #    
+                data_entry.entry.config(state="readonly")
+                
 
-        # GERAR NOVAS OS AUTOMÁTICAMENTE
-        self.gerar_os_do_dia()  # <- isso vai criar a próxima preventiva
+        else:
+            # Para pode editar qualquer manutenção existente
+            status_combo.configure(state="readonly")
 
-        # Recarregar dados na TreeView
-        self.carregar_dados()
-        if self.aba_planejamento:
-            self.aba_planejamento.carregar_planejamentos()
-
-        messagebox.showinfo("OK", "Manutenção concluída e próxima preventiva programada.")
-
+            if tipo == "Preventiva":
+                data_entry.entry.config(state="normal")
+            else:
+                data_entry.entry.config(state="readonly")

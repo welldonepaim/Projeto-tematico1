@@ -80,8 +80,8 @@ class AbaPlanejamento:
             planejamentos = planejamento_dao.listar_planejamentos()
             count = len(planejamentos)
             self.carregar_planejamentos()
-            message = f"Existem {count} planejamento(s) cadastrados. Nenhuma ordem foi gerada (modo de teste)."
-            messagebox.showinfo("Planejamentos", message)
+            message = f"{count} planejamentos carregados."
+            messagebox.showinfo(message)
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao listar planejamentos: {e}")
 
@@ -116,7 +116,7 @@ class AbaPlanejamento:
                 acoes_realizadas=None,
                 observacoes=(p.descricao or "") + f" (Gerada manualmente a partir do planejamento)",
                 prioridade=p.criticidade,
-                status='Programada'
+                status='Pendente'
             )
             manut.planejamento = p
             mid = manutencao_dao.inserir_manutencao(manut)
