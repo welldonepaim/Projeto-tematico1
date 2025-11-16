@@ -1,5 +1,4 @@
 # Projeto-tematico1
-# Projeto-tematico1
 # Sistema de Manutenção Hospitalar
 
 ## Descrição
