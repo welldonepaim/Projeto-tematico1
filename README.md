@@ -61,23 +61,41 @@ O **Painel** oferece uma visão geral do sistema, permitindo acompanhar indicado
 ## Estrutura do Projeto
 
 ├── src/
+
 │ ├── dao/ # DAO e acesso ao banco de dados
+
 │ │ ├── manutencao_dao.py
+
 │ │ ├── equipamento_dao.py
+
 │ │ ├── planejamento_dao.py
+
 │ │ └── usuario_dao.py
+
 │ ├── model/ # Modelos de dados
+
 │ │ ├── manutencao.py
+
 │ │ ├── equipamento.py
+
 │ │ ├── planejamento.py
+
 │ │ ├── usuario.py
+
 │ │ └── relatorio.py # Utilitário de PDF
+
 │ └── ui/ # Interface gráfica
+
 │ ├── painel.py # Aba Painel
+
 │ └── usuarios.py # Aba Usuários
+
 ├── image/ # Ícones e imagens
+
 │ └── favicon.png
+
 ├── main.py # Script principal para iniciar o sistema
+
 └── README.md
 
 
