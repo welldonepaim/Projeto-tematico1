@@ -18,12 +18,9 @@ try:
 except Exception:
     REPORTLAB_AVAILABLE = False
 
-
 def _format_date_safe(val):
-    """Formata um valor que pode ser date/datetime ou string 'YYYY-MM-DD' (ou com 'T') para 'DD/MM/YYYY'."""
     if not val:
         return ""
-    # já é date/datetime
     if hasattr(val, 'strftime'):
         try:
             return val.strftime('%d/%m/%Y')
@@ -37,14 +34,11 @@ def _format_date_safe(val):
     except Exception:
         return s
 
-
 def _parse_date_obj(val):
-    """Tenta converter val (date/datetime/str) para um objeto datetime.date. Retorna None se não for possível."""
     if not val:
         return None
     if isinstance(val, date):
         return val
-    # val may be datetime
     if hasattr(val, 'date') and not hasattr(val, 'strftime'):
         try:
             return val.date()
@@ -58,24 +52,20 @@ def _parse_date_obj(val):
     except Exception:
         return None
 
-
 class AbaPainel:
     def gerar_relatorio_pdf(self):
-        """Gera relatório PDF por setor usando utilitário ou exibe mensagem de erro se falhar."""
         try:
             if not REPORTLAB_AVAILABLE:
                 messagebox.showwarning("Instale reportlab")
                 return
-            # Utilitário customizado (se existir)
             if 'RelatorioPDFUtil' in globals():
                 RelatorioPDFUtil.gerar_relatorio_por_setor()
             else:
-                # Fallback: apenas mensagem
                 messagebox.showinfo("Relatório", "Função de geração de relatório não implementada.")
                 return
-            
         except Exception as e:
             messagebox.showerror("Erro ao gerar relatório", str(e))
+    
     def __init__(self, notebook):
         self.frame = tb.Frame(notebook, padding=12)
         notebook.add(self.frame, text="Painel")
@@ -96,8 +86,6 @@ class AbaPainel:
             self.logo_img = None
         tb.Label(header, text="Painel de Controle", font=("Segoe UI", 18, "bold"), foreground="#222222").pack(side=LEFT, fill="y", padx=(0,10), pady=2)
         tb.Button(header, text="Relatório por Setor (PDF)", bootstyle=PRIMARY, command=self.gerar_relatorio_pdf).pack(side=RIGHT, padx=6, pady=2)
-        # faixa colorida removida para fundo limpo
-
 
         # KPI cards
         self.kpi_frame = tb.Frame(self.frame)
@@ -106,32 +94,39 @@ class AbaPainel:
         # separador
         tb.Frame(self.frame, height=2, style="secondary.TFrame").pack(fill="x", pady=(0, 8))
 
-        # area de conteúdo (gráficos + tabela)
-        self.content_frame = tb.Frame(self.frame)
-        self.content_frame.pack(fill="both", expand=True)
+        # FRAME ROLÁVEL PARA CONTEÚDO
+        self.scroll_container = tb.Frame(self.frame)
+        self.scroll_container.pack(fill="both", expand=True)
 
+        self.canvas = tb.Canvas(self.scroll_container)
+        self.v_scroll = tb.Scrollbar(self.scroll_container, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.v_scroll.set)
+
+        self.canvas.pack(side=LEFT, fill="both", expand=True)
+        self.v_scroll.pack(side=RIGHT, fill=Y)
+
+        self.inner_frame = tb.Frame(self.canvas)
+        self.canvas_window = self.canvas.create_window((0,0), window=self.inner_frame, anchor="nw")
+
+        self.inner_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width))
+
+        # montar KPIs (fixos), gráficos e OS dentro do inner_frame (rolável)
         self._montar_kpis()
-        self._montar_graficos()
-        self._montar_os_mes()
-    
-
-       
+        self._montar_graficos(outer_frame=self.inner_frame)
+        self._montar_os_mes(outer_frame=self.inner_frame)
 
     def refresh(self):
         try:
-            # destrói widgets antigos
             for widget in list(self.kpi_frame.winfo_children()):
                 widget.destroy()
-            for widget in list(self.content_frame.winfo_children()):
+            for widget in list(self.inner_frame.winfo_children()):
                 widget.destroy()
-
-            # recria o conteúdo
             self._montar_kpis()
-            self._montar_graficos()
-            self._montar_os_mes()
+            self._montar_graficos(outer_frame=self.inner_frame)
+            self._montar_os_mes(outer_frame=self.inner_frame)
         except Exception as e:
             print("Erro ao atualizar painel:", e)
-
 
     def _kpi_card(self, parent, title, value, subtitle="", color=PRIMARY):
         card = tb.Frame(parent, padding=10)
@@ -143,7 +138,6 @@ class AbaPainel:
         return card
 
     def _montar_kpis(self):
-        # coleta dados
         equipamentos = equipamento_dao.listar_equipamentos()
         manutencoes = manutencao_dao.listar_manutencoes()
         planejamentos = planejamento_dao.listar_planejamentos()
@@ -152,70 +146,40 @@ class AbaPainel:
         equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
         ordens_abertas = len([m for m in manutencoes if getattr(m, 'status', '').lower() in ('pendente', 'em análise', 'em manutencão', 'programada')])
         hoje = datetime.today().date()
-        ordens_atrasadas = 0
+        ordens_atrasadas = sum(
+            1 for m in manutencoes
+            if m.data_prevista and getattr(m, 'planejamento', None) and m.data_prevista < hoje and getattr(m, 'status', '').lower() not in ('concluida', 'revisada')
+        )
 
-        for m in manutencoes:
-
-            # precisa ter data prevista
-            if not m.data_prevista:
-                continue
-
-            # precisa ter planejamento associado
-            planejamento_obj = getattr(m, 'planejamento', None)
-            planejamento_id = getattr(planejamento_obj, 'id', None)
-            if not planejamento_id:
-                continue
-
-            # está atrasada e não concluída
-            if m.data_prevista < hoje and getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
-                ordens_atrasadas += 1
-
-        # create cards
         self._kpi_card(self.kpi_frame, "Equipamentos", total_equipamentos, f"{equipamentos_disponiveis} disponíveis", color=PRIMARY)
         self._kpi_card(self.kpi_frame, "Ordens Abertas", ordens_abertas, "Em andamento", color=WARNING)
         self._kpi_card(self.kpi_frame, "Ordens Atrasadas", ordens_atrasadas, "Requer atenção", color=DANGER)
         self._kpi_card(self.kpi_frame, "Planejamentos", len(planejamentos), "Agendados", color=SUCCESS)
 
-
-    def _montar_graficos(self):
-        frame_graficos = tb.Frame(self.content_frame)
+    def _montar_graficos(self, outer_frame):
+        frame_graficos = tb.Frame(outer_frame)
         frame_graficos.pack(fill="both", expand=True, pady=10)
 
-        # Gráfico 1: Distribuição equipamentos 
+        # Gráfico 1: Distribuição equipamentos
         equipamentos = equipamento_dao.listar_equipamentos()
         total_equipamentos = len(equipamentos)
+        fig1, ax1 = plt.subplots(figsize=(3.5, 3.5))
         if total_equipamentos == 0:
-            fig1, ax1 = plt.subplots(figsize=(3.5, 3.5))
             ax1.set_title("Equipamentos", fontsize=13)
-            ax1.text(0.5, 0.5, 'Sem dados de equipamentos',
-                     horizontalalignment='center',
-                     verticalalignment='center',
-                     transform=ax1.transAxes, fontsize=11)
+            ax1.text(0.5, 0.5, 'Sem dados de equipamentos', ha='center', va='center', fontsize=11)
             ax1.axis('off')
-            fig1.tight_layout(pad=1.5)
-            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
         else:
-            equipamentos_disponiveis = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
-            equipamentos_manut = total_equipamentos - equipamentos_disponiveis
-            fig1, ax1 = plt.subplots(figsize=(3.5, 3.5))
-            wedges, texts, autotexts = ax1.pie(
-                [equipamentos_disponiveis, equipamentos_manut],
-                labels=["Disponíveis", "Em manutenção"],
-                autopct="%1.0f%%",
-                colors=["#2ecc71", "#e74c3c"],
-                wedgeprops={'edgecolor': '#34495e'},
-                textprops={'fontsize': 11}
-            )
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontsize(12)
-            for text in texts:
-                text.set_fontsize(11)
+            disp = len([e for e in equipamentos if getattr(e, 'status', '') == 'Disponível'])
+            manut = total_equipamentos - disp
+            wedges, texts, autotexts = ax1.pie([disp, manut], labels=["Disponíveis", "Em manutenção"], autopct="%1.0f%%",
+                                              colors=["#2ecc71", "#e74c3c"], wedgeprops={'edgecolor': '#34495e'})
+            for autotext in autotexts: autotext.set_color('white'); autotext.set_fontsize(12)
+            for text in texts: text.set_fontsize(11)
             ax1.set_title("Equipamentos", fontsize=13)
-            fig1.tight_layout(pad=1.5)
-            FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
+        fig1.tight_layout(pad=1.5)
+        FigureCanvasTkAgg(fig1, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
-        # Gráfico 2: Ordens por status (bar)
+        # Gráfico 2: Ordens por status
         manutencoes = manutencao_dao.listar_manutencoes()
         status_counts = Counter([(m.status or "").capitalize() for m in manutencoes])
         fig2, ax2 = plt.subplots(figsize=(4.5, 3.5))
@@ -223,10 +187,7 @@ class AbaPainel:
         ax2.set_title("Ordens por Status", fontsize=13)
         ax2.tick_params(axis='x', rotation=25, labelsize=11)
         ax2.tick_params(axis='y', labelsize=11)
-        for bar in bars:
-            bar.set_edgecolor('#34495e')
-        for label in ax2.get_xticklabels():
-            label.set_fontsize(11)
+        for bar in bars: bar.set_edgecolor('#34495e')
         fig2.tight_layout(pad=1.5)
         FigureCanvasTkAgg(fig2, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
@@ -238,19 +199,14 @@ class AbaPainel:
         ax3.set_title("Ordens por Prioridade", fontsize=13)
         ax3.tick_params(axis='x', rotation=15, labelsize=11)
         ax3.tick_params(axis='y', labelsize=11)
-        for bar in bars2:
-            bar.set_edgecolor('#34495e')
-        for label in ax3.get_xticklabels():
-            label.set_fontsize(11)
+        for bar in bars2: bar.set_edgecolor('#34495e')
         fig3.tight_layout(pad=1.5)
         FigureCanvasTkAgg(fig3, master=frame_graficos).get_tk_widget().pack(side=LEFT, expand=True, padx=8)
 
-
-    def _montar_os_mes(self):
-        frame_os = tb.Frame(self.content_frame)
+    def _montar_os_mes(self, outer_frame):
+        frame_os = tb.Frame(outer_frame)
         frame_os.pack(fill="both", expand=False, pady=10)
 
-        # Cabeçalho da tabela com fundo azul PRIMARY igual ao botão
         tb.Label(frame_os, text="Ordens de Serviço deste mês", font=("Segoe UI", 12, "bold"), background="#3498db", foreground="#fff").pack(anchor="w", fill="x", pady=(0,2))
 
         scrollbar = tb.Scrollbar(frame_os)
@@ -265,7 +221,6 @@ class AbaPainel:
         self.tree_os.pack(fill="both", expand=True)
         scrollbar.config(command=self.tree_os.yview)
 
-        # Linhas zebradas e cabeçalho destacado
         self.tree_os.tag_configure('par', background='#f2f2f2', foreground='black')
         self.tree_os.tag_configure('impar', background='white', foreground='black')
         self.tree_os.tag_configure('atrasada', background='#f8d7da', foreground='#c0392b', font=('Segoe UI', 10, 'bold'))
@@ -273,47 +228,47 @@ class AbaPainel:
         self.carregar_os_mes()
 
     def carregar_os_mes(self):
-        # limpa a tabela
         for item in self.tree_os.get_children():
             self.tree_os.delete(item)
 
         hoje = datetime.today().date()
-        manutencoes = manutencao_dao.listar_manutencoes()
+        todos_planejamentos = planejamento_dao.listar_planejamentos()
+        todas_manutencoes = manutencao_dao.listar_manutencoes()
+        os_por_planejamento = {m.planejamento.id: m for m in todas_manutencoes if getattr(m, 'planejamento', None)}
 
-        os_mes = []
-        for m in manutencoes:
-            if not m.data_prevista:
+        planejamentos_mes = []
+        for p in todos_planejamentos:
+            data_inicial_obj = _parse_date_obj(p.data_inicial)
+            data_para_comparar = data_inicial_obj
+            if (p.tipo or "").lower() == "preventiva" and p.last_gerada:
+                last_gerada_obj = _parse_date_obj(p.last_gerada)
+                if last_gerada_obj and p.dias_previstos:
+                    data_para_comparar = last_gerada_obj + timedelta(days=p.dias_previstos)
+            if not data_para_comparar:
                 continue
-            # Só mostra OS associadas a planejamento
-            planejamento_id = getattr(m, 'planejamento', None).id if getattr(m, 'planejamento', None) else None
-            if not planejamento_id:
-                continue
-            # OS do mês atual
-            if m.data_prevista.month == hoje.month and m.data_prevista.year == hoje.year:
-                os_mes.append((m, False))
-            # OS de meses anteriores ainda abertas
-            elif m.data_prevista < hoje and (m.data_prevista.month != hoje.month or m.data_prevista.year != hoje.year):
-                if getattr(m, 'status', '').lower() not in ('concluida', 'revisada'):
-                    os_mes.append((m, True))
+            if data_para_comparar.month == hoje.month and data_para_comparar.year == hoje.year:
+                planejamentos_mes.append(p)
 
-        # insere no treeview
-        for i, (m, atrasada) in enumerate(os_mes):
+        for i, p in enumerate(planejamentos_mes):
+            manutencao_associada = os_por_planejamento.get(p.id)
+            if manutencao_associada:
+                status = manutencao_associada.status
+                item_id = manutencao_associada.id
+                data_prevista = _parse_date_obj(manutencao_associada.data_prevista)
+            else:
+                status = "Planejada"
+                item_id = p.id
+                data_prevista = data_para_comparar
+            atrasada = False
+            if data_prevista and data_prevista < hoje:
+                if status.lower() not in ("concluída", "revisada", "em planejamento"):
+                    atrasada = True
             tag = 'atrasada' if atrasada else ('par' if i % 2 == 0 else 'impar')
-            # Nome do equipamento e responsável
-            eq_nome = m.equipamento.nome if hasattr(m, 'equipamento') and m.equipamento else getattr(m, 'equipamento_nome', "")
-            resp_nome = m.responsavel.nome if hasattr(m, 'responsavel') and m.responsavel else getattr(m, 'responsavel', "")
-            self.tree_os.insert(
-                "",
-                "end",
-                values=(
-                    m.id,
-                    m.tipo or "",
-                    eq_nome,
-                    resp_nome,
-                    _format_date_safe(m.data_prevista),
-                    m.prioridade or "",
-                    m.status or ""
-                ),
-                tags=(tag,)
-            )
-
+            eq_nome = p.equipamento.nome if p.equipamento else "N/A"
+            resp_nome = p.responsavel.nome if p.responsavel else "N/A"
+            self.tree_os.insert("", "end",
+                                values=(item_id, p.tipo or "", eq_nome, resp_nome,
+                                        _format_date_safe(data_prevista),
+                                        p.criticidade or "Sem Prioridade",
+                                        status),
+                                tags=(tag,))
