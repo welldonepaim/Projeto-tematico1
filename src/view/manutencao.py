@@ -4,6 +4,7 @@ from tkinter import messagebox, LEFT
 from src.model.manutencao import Manutencao
 from src.dao import manutencao_dao, usuario_dao, equipamento_dao, planejamento_dao
 from src.model.planejamento import Planejamento
+from src.view.viewManutencao import OrdemServicoReportLab  # importe sua classe de PDF aqui
 from datetime import date, datetime,timedelta
 import ttkbootstrap as tb
 
@@ -121,7 +122,9 @@ class AbaManutencao:
         self.btn_cancelar = tb.Button(frame_botoes_form, text="Cancelar", bootstyle=SECONDARY, command=self.cancelar_edicao)
         self.btn_cancelar.pack(side=LEFT, expand=True, fill="x", padx=5)
         self.btn_cancelar.pack_forget()
-            
+        self.btn_gerar_laudo = tb.Button(frame_botoes_form, text="View Laudo", bootstyle=PRIMARY, command=self.gerar_laudo)
+        self.btn_gerar_laudo.pack(side=LEFT, expand=True, fill="x", padx=5)
+   
     def _montar_tabela(self):
         frame_tabela = tb.Frame(self.inner_frame)
         frame_tabela.grid(row=11, column=0, columnspan=2, pady=5, sticky="nsew")
@@ -643,4 +646,34 @@ class AbaManutencao:
             else:
                 data_entry.entry.config(state="readonly")
 
-    
+    def gerar_laudo(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showwarning("Atenção", "Selecione uma manutenção para gerar o laudo.")
+            return
+
+        item = self.tree.item(selecionado[0])
+        manutencao_id = item["values"][0]
+
+        manutencao = manutencao_dao.buscar_manutencao_por_id(manutencao_id)
+        if not manutencao:
+            messagebox.showerror("Erro", "Manutenção não encontrada.")
+            return
+
+        # Prepara os dados para o PDF
+        manutencao_dict = {
+            "id": manutencao.id,
+            "equipamento": manutencao.equipamento.nome if manutencao.equipamento else "N/A",
+            "responsavel": manutencao.responsavel.nome if manutencao.responsavel else "N/A",
+            "data_prevista": manutencao.data_prevista or datetime.today(),
+            "status": manutencao.status,
+            "prioridade": manutencao.prioridade,
+            "observacoes": manutencao.observacoes or "Sem observações"
+        }
+
+
+        try:
+            arquivo_pdf = OrdemServicoReportLab(manutencao_dict).gerar_pdf()
+            messagebox.showinfo("Sucesso", f"Laudo gerado com sucesso!\n{arquivo_pdf}")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível gerar o laudo: {e}")
